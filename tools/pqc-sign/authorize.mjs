@@ -1,9 +1,12 @@
 // Read-only registered-issuer authorization integration for PAR.
 //
 // Requires a registered, possession-proven ML-DSA-87 key on qorechain-diana.
-// It reads the exact message from a deployed PAR servicing contract when one is
-// given, otherwise it uses the Solidity-matched local fixture. It signs the raw
-// bytes with the local PQC key, verifies locally, prepares the pqcVerify
+// --issuer is the PQC signing identity, which is not the operational EVM issuer
+// that submits the transaction: any account holding ISSUER_ROLE can relay the
+// signature. The authorization message binds that PQC identity explicitly.
+// The tool reads the exact message from a deployed PAR servicing contract when
+// one is given, otherwise it uses the Solidity-matched local fixture. It signs
+// the raw bytes with the local PQC key, verifies locally, prepares the pqcVerify
 // calldata and checks valid/wrong-key/tampered-message behaviour against the
 // live precompile with eth_call. It NEVER builds or broadcasts a transaction,
 // connects a wallet or prints the secret key.
@@ -132,7 +135,7 @@ try {
     messageSource =
       "solidity-matched couponFinalization fixture (sample addresses; not valid for a deployed contract)";
   }
-  if (message.length !== 256) throw new Error(`unexpected PAR message length ${message.length}, expected 256`);
+  if (message.length !== 288) throw new Error(`unexpected PAR message length ${message.length}, expected 288`);
 
   const secretKey = readSecretKeyFile(args["key-file"]);
   const signature = mldsa87.sign(secretKey, message);

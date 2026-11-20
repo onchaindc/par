@@ -13,6 +13,7 @@ export const SAMPLE = {
   chainId: 9800n,
   servicing: "0x1111111111111111111111111111111111111111",
   bond: "0x2222222222222222222222222222222222222222",
+  pqcIssuer: "0x3333333333333333333333333333333333333333",
   deadline: 1_893_456_000n, // 2030-01-01T00:00:00Z
 };
 
@@ -21,6 +22,7 @@ const MESSAGE_TYPES = [
   "uint256", // chain id
   "address", // servicing contract
   "address", // bond token
+  "address", // PQC issuer identity
   "bytes32", // action type
   "uint256", // authorization nonce
   "uint64", // deadline
@@ -49,16 +51,26 @@ export const REDEMPTION_FIXTURE = {
 
 export const EXPECTED_HASHES = {
   couponFinalization:
-    "0x266c8e516dacb848a2b62b8970803d4d32aeea66d0409f251fe9e8d8671dcbfe",
+    "0x8d6e46e9e47b137f08d8c9f87e4ad07bb4a36a2bf61c592bb523811157ae2ad4",
   redemptionDeclaration:
-    "0xc71335b4e6766c5b4c61a0831c0f75c07caf0e1b8bbc7a46f3ede2a4335f78b4",
+    "0x5372e6d0029d5b89b30fd81209f69d2ec9ac958c8380d0c093eb962237fdc1cd",
 };
 
 export function buildMessage(entry, sample = SAMPLE) {
   const paramsHash = keccak256(abi.encode(entry.params.types, entry.params.values));
   const message = abi.encode(
     MESSAGE_TYPES,
-    [DOMAIN, sample.chainId, sample.servicing, sample.bond, entry.action, entry.nonce, sample.deadline, paramsHash],
+    [
+      DOMAIN,
+      sample.chainId,
+      sample.servicing,
+      sample.bond,
+      sample.pqcIssuer,
+      entry.action,
+      entry.nonce,
+      sample.deadline,
+      paramsHash,
+    ],
   );
   return { message, paramsHash };
 }

@@ -116,13 +116,31 @@ Per-period status is exposed as `required / funded / claimed / outstanding`, whe
 
 | Role | Holder | Powers |
 |---|---|---|
-| `DEFAULT_ADMIN_ROLE` | issuer | Grants/revokes roles. |
-| `ISSUER_ROLE` | issuer | Opens periods, edits unfinalised future record dates, finalises coupons, declares redemption. |
+| `DEFAULT_ADMIN_ROLE` | operational EVM issuer | Grants/revokes roles. |
+| `ISSUER_ROLE` | operational EVM issuer | Opens periods, edits unfinalised future record dates, finalises coupons, declares redemption. |
 | `TREASURER_ROLE` | treasurer (granted by admin) | Funds coupons and principal. |
-| `MINTER_ROLE` (token) | issuer | Mints within the cap. |
+| `MINTER_ROLE` (token) | operational EVM issuer | Mints within the cap. |
 
 A treasurer cannot finalise a distribution; an issuer cannot fund one unless also granted the
 treasurer role; neither can finalise or declare redemption without a valid PQ signature.
+
+### Two issuer identities
+
+`BondServicing` separates the account that **holds the role and submits the transaction** from the
+account whose **post-quantum key authorises the action**:
+
+| Identity | Address kind | What it does |
+|---|---|---|
+| Operational EVM issuer | ordinary EVM account | Holds `DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE`, sends `finalizeCoupon` / `declareRedemption`, pays gas. |
+| PQC issuer | account with a registered, possession-proven ML-DSA-87 key | Signs the action message off chain. Holds no role and needs no EVM transaction. |
+
+The constructor rejects a zero operational issuer and rejects the case where the operational issuer
+is the same address as `authorizer.pqcIssuer()`. `PqcIssuerAuthorizer` remains an independent,
+immutable statement of which key may sign. Because the authorizer is asked about
+`authorizer.pqcIssuer()` rather than `msg.sender`, any account holding `ISSUER_ROLE` can relay a valid
+signature. The role still gates *whether* an action may be attempted; the PQC signature gates *what*
+is authorised. Neither factor alone is sufficient, and a compromised operational key cannot forge a
+coupon or redemption declaration.
 
 ## 4. PQC authorization design
 
@@ -159,13 +177,14 @@ PAR forwards 250,000 gas to `pqcVerify` and 200,000 to `pqcKeyStatus`; unused ga
 Both are `staticcall`s, and any failure, empty/malformed return or non-canonical boolean is a refusal.
 The servicing contract then reverts with `UnauthorizedIssuerAction`.
 
-The signed message is ABI-encoded (256 bytes) and includes:
+The signed message is ABI-encoded (288 bytes) and includes:
 
 ```
 keccak256("PAR_BOND_AUTHORIZATION_V1")
 chainId
 address(servicing)
 address(bond)
+address(pqcIssuer)
 action type (FINALIZE_COUPON or DECLARE_REDEMPTION)
 authorizationNonce
 deadline
@@ -176,10 +195,13 @@ The nonce is consumed on every successful authorization and included before incr
 cannot be replayed across actions, periods, bonds or chains. The deadline bounds how long an unused
 signature stays valid. `couponFinalizationMessage(periodId, deadline)` and
 `redemptionDeclarationMessage(recordDateBlock, deadline)` return the exact bytes to sign, so the
-off-chain signer does not duplicate the encoding. The issuer signs with the ML-DSA-87 key registered
-to its address and submits the signature from that same address, which must hold `ISSUER_ROLE`.
-Freshness is enforced by both the nonce and `block.timestamp <= deadline`; an expired signature is
-rejected with `AuthorizationExpired` before any cryptographic check and without consuming the nonce.
+off-chain signer does not duplicate the encoding. The PQC issuer signs with the ML-DSA-87 key
+registered to `authorizer.pqcIssuer()`; the transaction may be sent by that address or by any other
+account holding `ISSUER_ROLE`. `pqcIssuer` is part of the signed bytes, so a signature produced for a
+different PQC identity — or for a different chain, servicing contract, bond, action, nonce, deadline
+or parameter set — does not verify. Freshness is enforced by both the nonce and
+`block.timestamp <= deadline`; an expired signature is rejected with `AuthorizationExpired` before any
+cryptographic check and without consuming the nonce.
 
 ### Off-chain signing procedure
 
@@ -252,8 +274,9 @@ with its `0x` address is the acceptance check for registration.
    issuer key signing a real `couponFinalizationMessage` and submitting `finalizeCoupon`.
 4. **Key rotation and revocation.** The authorizer resolves the key through `pqcKeyStatus` on every
    call, so a native key rotation or removal is picked up automatically and old signatures stop
-   working. The authorizer's issuer address is immutable; moving the issuer to another EVM address
-   requires deploying a new authorizer and servicing contract.
+   working. The authorizer's PQC issuer address is immutable; changing *that* identity requires
+   deploying a new authorizer and servicing contract. The operational EVM issuer is ordinary role
+   administration: the admin can grant `ISSUER_ROLE` to a replacement account and revoke the old one.
 5. **Deadline policy.** The contract enforces the signed deadline but does not impose a maximum. An
    issuer client should use a short window (minutes to hours) for operational actions.
 6. **Token retirement.** Principal claims do not burn bond tokens. Post-maturity supply retirement and
@@ -284,10 +307,11 @@ account and registration procedure is in [issuer-setup.md](issuer-setup.md).
 3. Confirm `tools/preflight/preflight.mjs <0x>` exits `0` with `registered`, `algorithmId=1`,
    `pubkeyLength=2592` and `possessionProven=true`.
 4. Open a bounded EVM authorization window from the native lane (broadcast; not authorized yet).
-5. Deploy `BondToken` and `BondServicing` to testnet 9800 (dry run first), grant `ISSUER_ROLE`, open
-   a coupon period and pass its record-date block.
-6. Run `authorize.mjs` with the deployed contract to sign `couponFinalizationMessage`, submit
-   `finalizeCoupon(periodId, deadline, signature)` from the registered issuer, and confirm the
-   event/nonce. Repeat wrong key, tampered message and expired deadline; each must revert without
-   consuming the nonce.
+5. Deploy `BondToken` and `BondServicing` to testnet 9800 (dry run first), passing the operational
+   EVM issuer to the constructor; that account receives `ISSUER_ROLE` and `DEFAULT_ADMIN_ROLE`, and
+   the registered PQC identity receives no role.
+6. Run `authorize.mjs` with the deployed contract and the registered PQC key to sign
+   `couponFinalizationMessage`, submit `finalizeCoupon(periodId, deadline, signature)` from the
+   operational issuer, and confirm the event/nonce. Repeat wrong signer, tampered message and
+   expired deadline; each must revert without consuming the nonce.
 7. Add a minimal reconciliation export and token retirement after redemption.

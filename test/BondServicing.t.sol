@@ -6,6 +6,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {BondToken} from "../contracts/BondToken.sol";
 import {BondServicing} from "../contracts/BondServicing.sol";
+import {AuthorizationMessage} from "../contracts/lib/AuthorizationMessage.sol";
 import {PqcIssuerAuthorizer} from "../contracts/access/PqcIssuerAuthorizer.sol";
 import {MockPqcKeyStatus, MockPqcVerify, TestERC20, ReentrantERC20} from "./mocks/Mocks.sol";
 
@@ -17,7 +18,10 @@ contract BondServicingTest is Test {
     MockPqcKeyStatus private keyStatus;
     MockPqcVerify private verifier;
 
+    /// @dev The operational EVM issuer: holds the roles and sends the transactions.
     address private issuer = makeAddr("issuer");
+    /// @dev The registered ML-DSA-87 identity: signs actions off chain, never sends a transaction.
+    address private pqcIssuer = makeAddr("pqcIssuer");
     address private treasurer = makeAddr("treasurer");
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
@@ -40,7 +44,7 @@ contract BondServicingTest is Test {
 
         bond = new BondToken("Par Bond 2030", "PAR30", issuer, 1_000_000e18);
         payment = new TestERC20();
-        authorizer = new PqcIssuerAuthorizer(issuer);
+        authorizer = new PqcIssuerAuthorizer(pqcIssuer);
         maturity = uint64(block.timestamp + 365 days);
         servicing = new BondServicing(
             bond,
@@ -120,6 +124,42 @@ contract BondServicingTest is Test {
 
         vm.expectRevert(BondServicing.InvalidTerms.selector);
         new BondServicing(bond, authorizer, issuer, address(payment), maturity, 500, 5, FACE_VALUE_PER_TOKEN);
+    }
+
+    function testConstructorRejectsZeroAddresses() public {
+        vm.expectRevert(BondServicing.ZeroAddress.selector);
+        new BondServicing(
+            bond,
+            authorizer,
+            address(0),
+            address(payment),
+            maturity,
+            COUPON_RATE_BPS,
+            PAYMENTS_PER_YEAR,
+            FACE_VALUE_PER_TOKEN
+        );
+    }
+
+    /// @dev The operational EVM issuer and the registered PQC identity must be different accounts.
+    function testConstructorRejectsPqcIdentityAsOperationalIssuer() public {
+        vm.expectRevert(BondServicing.IssuerIsPqcIdentity.selector);
+        new BondServicing(
+            bond,
+            authorizer,
+            pqcIssuer,
+            address(payment),
+            maturity,
+            COUPON_RATE_BPS,
+            PAYMENTS_PER_YEAR,
+            FACE_VALUE_PER_TOKEN
+        );
+    }
+
+    function testRolesAreHeldByOperationalIssuerOnly() public view {
+        assertTrue(servicing.hasRole(servicing.DEFAULT_ADMIN_ROLE(), issuer));
+        assertTrue(servicing.hasRole(servicing.ISSUER_ROLE(), issuer));
+        assertFalse(servicing.hasRole(servicing.DEFAULT_ADMIN_ROLE(), pqcIssuer));
+        assertFalse(servicing.hasRole(servicing.ISSUER_ROLE(), pqcIssuer));
     }
 
     function testOnlyIssuerOpensPeriod() public {
@@ -337,6 +377,172 @@ contract BondServicingTest is Test {
         servicing.finalizeCoupon(periodId, deadline, signature);
     }
 
+    /// @dev The successful path: the operational EVM account submits, the registered PQC identity signs.
+    function testRelayedAuthorizationSucceeds() public {
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        verifier.expectMessage(servicing.couponFinalizationMessage(periodId, deadline));
+
+        // The PQC identity never sends a transaction; it only signed the message off chain.
+        vm.prank(issuer);
+        servicing.finalizeCoupon(periodId, deadline, signature);
+
+        assertTrue(servicing.couponPeriod(periodId).finalized);
+        assertEq(servicing.couponPeriod(periodId).requiredFunding, COUPON_REQUIRED);
+        assertEq(servicing.authorizationNonce(), 1);
+    }
+
+    /// @dev The message names the registered PQC identity, not the transaction sender.
+    function testMessageNamesRegisteredPqcIssuer() public {
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        bytes memory message = servicing.couponFinalizationMessage(periodId, deadline);
+        bytes memory expected = AuthorizationMessage.build(
+            block.chainid,
+            address(servicing),
+            address(bond),
+            pqcIssuer,
+            servicing.ACTION_FINALIZE_COUPON(),
+            servicing.authorizationNonce(),
+            deadline,
+            keccak256(
+                abi.encode(
+                    periodId,
+                    servicing.couponPeriod(periodId).recordDateBlock,
+                    COUPON_PER_TOKEN,
+                    COUPON_REQUIRED,
+                    deadline
+                )
+            )
+        );
+        assertEq(message, expected);
+        assertEq(message.length, 288);
+    }
+
+    /// @dev Holding `ISSUER_ROLE` is not enough: the PQC identity itself has no role and cannot submit.
+    function testPqcIdentityCannotSubmit() public {
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        verifier.expectMessage(servicing.couponFinalizationMessage(periodId, deadline));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, pqcIssuer, servicing.ISSUER_ROLE()
+            )
+        );
+        vm.prank(pqcIssuer);
+        servicing.finalizeCoupon(periodId, deadline, signature);
+    }
+
+    /// @dev A signature made for a different PQC identity is not accepted for the registered one.
+    function testSignatureBoundToRegisteredPqcIdentity() public {
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        bytes memory foreign = AuthorizationMessage.build(
+            block.chainid,
+            address(servicing),
+            address(bond),
+            makeAddr("otherPqcIdentity"),
+            servicing.ACTION_FINALIZE_COUPON(),
+            servicing.authorizationNonce(),
+            deadline,
+            keccak256(
+                abi.encode(
+                    periodId,
+                    servicing.couponPeriod(periodId).recordDateBlock,
+                    COUPON_PER_TOKEN,
+                    COUPON_REQUIRED,
+                    deadline
+                )
+            )
+        );
+        verifier.expectMessage(foreign);
+
+        vm.expectRevert(BondServicing.UnauthorizedIssuerAction.selector);
+        vm.prank(issuer);
+        servicing.finalizeCoupon(periodId, deadline, signature);
+        assertEq(servicing.authorizationNonce(), 0);
+    }
+
+    function testAlteredActionParametersRejected() public {
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        bytes memory altered = AuthorizationMessage.build(
+            block.chainid,
+            address(servicing),
+            address(bond),
+            pqcIssuer,
+            servicing.ACTION_FINALIZE_COUPON(),
+            servicing.authorizationNonce(),
+            deadline,
+            keccak256(
+                abi.encode(
+                    periodId,
+                    servicing.couponPeriod(periodId).recordDateBlock,
+                    COUPON_PER_TOKEN,
+                    COUPON_REQUIRED + 1,
+                    deadline
+                )
+            )
+        );
+        verifier.expectMessage(altered);
+
+        vm.expectRevert(BondServicing.UnauthorizedIssuerAction.selector);
+        vm.prank(issuer);
+        servicing.finalizeCoupon(periodId, deadline, signature);
+    }
+
+    /// @dev A signature over a consumed nonce does not authorise a later action.
+    function testReplayedSignatureRejected() public {
+        _accurateCouponPeriod();
+        assertEq(servicing.authorizationNonce(), 1);
+
+        vm.prank(issuer);
+        uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
+        vm.roll(block.number + 3);
+
+        uint64 deadline = _deadline();
+        bytes memory consumedNonce = AuthorizationMessage.build(
+            block.chainid,
+            address(servicing),
+            address(bond),
+            pqcIssuer,
+            servicing.ACTION_FINALIZE_COUPON(),
+            0,
+            deadline,
+            keccak256(
+                abi.encode(
+                    periodId,
+                    servicing.couponPeriod(periodId).recordDateBlock,
+                    COUPON_PER_TOKEN,
+                    COUPON_REQUIRED,
+                    deadline
+                )
+            )
+        );
+        verifier.expectMessage(consumedNonce);
+
+        vm.expectRevert(BondServicing.UnauthorizedIssuerAction.selector);
+        vm.prank(issuer);
+        servicing.finalizeCoupon(periodId, deadline, signature);
+        assertEq(servicing.authorizationNonce(), 1);
+    }
+
     function testRejectedSignatureDoesNotConsumeNonce() public {
         vm.prank(issuer);
         uint256 periodId = servicing.openCouponPeriod(uint64(block.number + 2));
@@ -498,6 +704,7 @@ contract BondServicingReentrancyTest is Test {
     MockPqcVerify private verifier;
 
     address private issuer = makeAddr("issuer");
+    address private pqcIssuer = makeAddr("pqcIssuer");
     address private treasurer = makeAddr("treasurer");
     address private alice = makeAddr("alice");
 
@@ -507,7 +714,7 @@ contract BondServicingReentrancyTest is Test {
     function setUp() public {
         bond = new BondToken("Par Bond 2030", "PAR30", issuer, 1_000_000e18);
         payment = new ReentrantERC20();
-        authorizer = new PqcIssuerAuthorizer(issuer);
+        authorizer = new PqcIssuerAuthorizer(pqcIssuer);
         servicing = new BondServicing(
             bond, authorizer, issuer, address(payment), uint64(block.timestamp + 365 days), 500, 2, 100e6
         );

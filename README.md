@@ -57,9 +57,11 @@ See [docs/architecture.md](docs/architecture.md) for the QoreChain Asset Kit rev
 
 Sensitive issuer actions (`finalizeCoupon`, `declareRedemption`) require two factors: the `ISSUER_ROLE` and a fresh ML-DSA-87 signature verified on chain.
 
+The role and the signing key belong to different accounts. An operational EVM issuer holds `DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE`, sends the transaction and pays gas; the registered PQC identity (`authorizer.pqcIssuer()`) signs the action message off chain and holds no role. `BondServicing` rejects a constructor issuer equal to the PQC identity, so a single keypair can never supply both factors. Because verification is against `authorizer.pqcIssuer()` rather than `msg.sender`, any account holding `ISSUER_ROLE` can relay a valid signature.
+
 `PqcIssuerAuthorizer` reads the issuer's registered public key from **PQC Key Status at `0x0A02`** and requires the exact four-field response: `registered == true`, algorithm id 1 (ML-DSA-87), a 2,592-byte key and `possessionProven == true`. The three-field legacy layout, unproven keys, malformed data and missing precompiles are rejected. It then calls **PQC Verify at `0x0A01`** with the 4,627-byte signature over the action message. The two precompiles are never confused: `0x0A02` identifies the key, `0x0A01` verifies the signature.
 
-The signed 256-byte message binds the chain, servicing contract, bond, action type, a one-time authorization nonce, a deadline and the action parameters. Signatures cannot be replayed across actions or chains, and expire. `couponFinalizationMessage(periodId, deadline)` and `redemptionDeclarationMessage(recordDateBlock, deadline)` return the exact bytes an issuer must sign; `tools/pqc-sign` demonstrates signing them with the official `@qorechain/pqc` package and asserts the same hashes as a Solidity test.
+The signed 288-byte message binds the chain, servicing contract, bond, registered PQC issuer identity, action type, a one-time authorization nonce, a deadline and the action parameters. Signatures cannot be replayed across actions or chains, and expire. `couponFinalizationMessage(periodId, deadline)` and `redemptionDeclarationMessage(recordDateBlock, deadline)` return the exact bytes an issuer must sign; `tools/pqc-sign` demonstrates signing them with the official `@qorechain/pqc` package and asserts the same hashes as a Solidity test.
 
 The selectors and encoding are pinned against QoreChain's `qorechain-core` ABI helpers: `pqcVerify(bytes,bytes,bytes)` is `0xf52bde0a` and `pqcKeyStatus(address)` is `0x850dfe51`. A read-only testnet preflight (`tools/preflight/preflight.mjs`) confirmed chain ID 9800, the four-field key-status response and an active `pqcVerify`. A second read-only check (`tools/pqc-sign/verify-live.mjs`) had the live precompile accept a locally generated ML-DSA-87 signature and reject a tampered message.
 
@@ -127,7 +129,7 @@ Implemented protections:
 - `ReentrancyGuard` and checks-effects-interactions around token transfers;
 - Solidity 0.8 checked arithmetic and `Math.mulDiv` for entitlement math;
 - `SafeERC20` for all payment-token movements;
-- separated `ISSUER_ROLE` and `TREASURER_ROLE`;
+- separated `ISSUER_ROLE` and `TREASURER_ROLE`, and separated operational EVM issuer from the registered PQC signing identity;
 - fail-closed ML-DSA-87 authorization: four-field key status with proof of possession, nonce- and deadline-bound, domain-separated messages.
 
 Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the pending first registered-issuer transaction, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.

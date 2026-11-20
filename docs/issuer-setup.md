@@ -2,8 +2,15 @@
 
 This is the preparation procedure for PAR's first real registered-issuer
 authorization test on `qorechain-diana` (EVM chain ID **9800**). It creates a
-dedicated issuer account and registers an ML-DSA-87 key **with a proof of
-possession**, which PAR requires.
+dedicated **PQC issuer** account and registers an ML-DSA-87 key **with a proof
+of possession**, which PAR requires.
+
+That account is only the signing identity. It holds no `ISSUER_ROLE` and never
+sends the servicing transaction. The **operational EVM issuer** — a separate
+account that submits `finalizeCoupon` / `declareRedemption`, holds
+`DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE`, and pays gas — must be a different
+address. `BondServicing` rejects a constructor where the two are equal, and the
+signed 288-byte message binds the PQC identity.
 
 Nothing in this procedure has been executed by the repository tooling. Every
 transaction below is listed for review only; wait for explicit authorization
@@ -279,9 +286,16 @@ npm run authorize -- \
 ```
 
 The script reads `couponFinalizationMessage(periodId, deadline)` by `eth_call`,
-signs the exact raw bytes, verifies locally, prepares the `pqcVerify` calldata,
-and checks valid / wrong-key / tampered-message results against the live
-precompile. It prints no secret and never builds or broadcasts a transaction.
+signs the exact 288-byte raw bytes, verifies locally, prepares the `pqcVerify`
+calldata, and checks valid / wrong-key / tampered-message results against the
+live precompile. It prints no secret and never builds or broadcasts a
+transaction.
+
+The resulting signature is submitted from the operational EVM issuer, not from
+the registered PQC identity. The PQC identity needs its registered key and, for
+the signing account itself, an EVM authorization window only if it also sends
+transactions; the operational account needs its own coin-60 registration and
+window for the EVM lane.
 
 ## Remaining blockers
 

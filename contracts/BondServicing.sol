@@ -16,6 +16,13 @@ import {IIssuerAuthorizer} from "./interfaces/IIssuerAuthorizer.sol";
 /// checkpointed balance at a period's record-date block, so no holder list is stored on chain.
 /// Sensitive issuer actions (`finalizeCoupon`, `declareRedemption`) require both the `ISSUER_ROLE` and
 /// a fresh ML-DSA-87 signature over an action-bound message checked by 0x0A01.
+/// @dev Two distinct identities are involved and deliberately separated:
+/// - the *operational issuer* is an ordinary EVM account holding `DEFAULT_ADMIN_ROLE` and
+///   `ISSUER_ROLE`; it submits the transaction and pays for it;
+/// - the *PQC issuer* is the account whose ML-DSA-87 key is registered in `authorizer`; it signs the
+///   action message off chain with its post-quantum key and never needs an EVM transaction.
+/// Any account holding `ISSUER_ROLE` can relay a valid PQC-signed action, so the signing identity and
+/// the transaction sender do not have to be the same address.
 contract BondServicing is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -127,6 +134,7 @@ contract BondServicing is AccessControl, ReentrancyGuard {
     error BeforeMaturity(uint64 maturity);
     error AuthorizationExpired(uint64 deadline);
     error UnauthorizedIssuerAction();
+    error IssuerIsPqcIdentity();
 
     constructor(
         BondToken bond_,
@@ -146,7 +154,9 @@ contract BondServicing is AccessControl, ReentrancyGuard {
             maturity_ <= block.timestamp || couponRateBps_ == 0 || couponRateBps_ > BPS_DENOMINATOR
                 || paymentsPerYear_ == 0 || 12 % paymentsPerYear_ != 0 || faceValuePerToken_ == 0
         ) revert InvalidTerms();
-        if (authorizer_.pqcIssuer() != issuer_) revert InvalidTerms();
+        // The operational EVM issuer must be a separate account from the registered PQC identity.
+        // Otherwise a single compromised keypair would hold both the role and the signing key.
+        if (issuer_ == authorizer_.pqcIssuer()) revert IssuerIsPqcIdentity();
 
         bond = bond_;
         authorizer = authorizer_;
@@ -497,8 +507,8 @@ contract BondServicing is AccessControl, ReentrancyGuard {
         );
     }
 
-    /// @dev Binds a signature to this chain, this servicing contract, this bond, the action, a
-    /// one-time nonce and a deadline.
+    /// @dev Binds a signature to this chain, this servicing contract, this bond, the registered PQC
+    /// issuer identity, the action, a one-time nonce and a deadline.
     function _authorizationMessage(bytes32 action, uint64 deadline, bytes memory params)
         private
         view
@@ -508,6 +518,7 @@ contract BondServicing is AccessControl, ReentrancyGuard {
             block.chainid,
             address(this),
             address(bond),
+            authorizer.pqcIssuer(),
             action,
             authorizationNonce,
             deadline,
@@ -515,10 +526,13 @@ contract BondServicing is AccessControl, ReentrancyGuard {
         );
     }
 
-    /// @dev Requires the PQC issuer to have signed `message`; consumes one nonce.
+    /// @dev Requires the registered PQC issuer to have signed `message`; consumes one nonce. The
+    /// caller only needs `ISSUER_ROLE`, so a separate operational account can relay the signature.
     function _authorize(bytes calldata signature, bytes memory message) private returns (uint256 usedNonce) {
         usedNonce = authorizationNonce;
-        if (!authorizer.isAuthorized(msg.sender, message, signature)) revert UnauthorizedIssuerAction();
+        if (!authorizer.isAuthorized(authorizer.pqcIssuer(), message, signature)) {
+            revert UnauthorizedIssuerAction();
+        }
         authorizationNonce = usedNonce + 1;
     }
 }

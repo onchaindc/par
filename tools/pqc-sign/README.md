@@ -63,9 +63,14 @@ network request. Registration itself remains a native-lane transaction; see
 
 ```bash
 npm run authorize -- \
-  --issuer <0x registered issuer> \
+  --issuer <0x registered PQC identity> \
   --key-file ~/.qorechaind/pqc/par-issuer-mldsa.dilithium
 ```
+
+`--issuer` is the registered PQC identity that signs, not the operational EVM
+account that submits the transaction. The two are separate: the operational
+account holds `ISSUER_ROLE` and relays the signature, while the PQC identity
+holds no role. The signed 288-byte message names the PQC identity explicitly.
 
 Queries the EVM chain ID (must be `9800`), reads `pqcKeyStatus` and fails unless
 the account has a registered, possession-proven ML-DSA-87 key with a 2,592-byte
