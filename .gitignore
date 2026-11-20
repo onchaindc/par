@@ -16,6 +16,8 @@ build/
 # Keys and secrets
 *.key
 *.pem
+*.dilithium
+*.dilithium.bak-*
 keys/
 secrets/
 

@@ -6,7 +6,7 @@ Par is an open-source bond servicing application for tokenized assets. It handle
 
 ## Status
 
-Milestone 1 (Solidity foundation) and Milestone 2A (PQC security correction and read-only testnet validation) are implemented and tested. There is no frontend, deployment or transaction-level QoreChain integration yet.
+Milestone 1 (Solidity foundation), Milestone 2A (PQC security correction and read-only testnet validation) and Milestone 2B preparation (registered-issuer tooling) are implemented; the Solidity suite and local tooling are tested. No registration, deployment or transaction has been broadcast, and there is no frontend yet.
 
 | Component | Status |
 |-----------|--------|
@@ -17,7 +17,8 @@ Milestone 1 (Solidity foundation) and Milestone 2A (PQC security correction and 
 | Investor payment claims | implemented |
 | Funded / claimed / outstanding tracking | implemented |
 | ML-DSA-87 authorization (QoreChain) | implemented; four-field key status with proof of possession; local signing and read-only live `pqcVerify` verified |
-| Read-only testnet preflight | complete (chain 9800) |
+| Read-only testnet preflight | complete; strict issuer validation (chain 9800) |
+| Registered issuer setup and PoP tooling | prepared; no registration broadcast |
 | Payment reconciliation | planned |
 | QoreChain testnet deployment and registered-issuer transaction | planned |
 | Frontend | planned |
@@ -95,13 +96,20 @@ Repository structure:
 - `script/` — Foundry scripts (reserved for the testnet milestone)
 - `app/` — TypeScript application code (reserved for the frontend milestone)
 
-Read-only testnet preflight and local signing check:
+Read-only testnet preflight and PQC tooling:
 
 ```bash
-node tools/preflight/preflight.mjs [address]
+node tools/preflight/preflight.mjs [issuer-address]
 (cd tools/pqc-sign && npm install && npm start)
 (cd tools/pqc-sign && node verify-live.mjs)
+(cd tools/pqc-sign && npm run keygen -- --name par-issuer-mldsa)
+(cd tools/pqc-sign && npm run register -- --help)
+(cd tools/pqc-sign && npm run authorize -- --help)
 ```
+
+See [docs/issuer-setup.md](docs/issuer-setup.md) for the exact testnet account creation,
+`MsgRegisterPQCKeyV2` proof-of-possession, registration and verification procedure. All registration
+commands there are listed without broadcasting; the tooling is read-only.
 
 Housekeeping:
 
@@ -122,7 +130,7 @@ Implemented protections:
 - separated `ISSUER_ROLE` and `TREASURER_ROLE`;
 - fail-closed ML-DSA-87 authorization: four-field key status with proof of possession, nonce- and deadline-bound, domain-separated messages.
 
-Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the unresolved `pqcKeyStatus` return-layout question, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
+Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the pending first registered-issuer transaction, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
 
 Nothing in this repository is deployed or audited.
 

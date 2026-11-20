@@ -5,7 +5,11 @@
   "type": "module",
   "description": "Local PAR ML-DSA-87 signing and message-encoding check using the official QoreChain cryptography library",
   "scripts": {
-    "start": "node sign.mjs"
+    "start": "node sign.mjs",
+    "keygen": "node keygen.mjs",
+    "register": "node register.mjs",
+    "authorize": "node authorize.mjs",
+    "verify-live": "node verify-live.mjs"
   },
   "dependencies": {
     "@qorechain/pqc": "0.2.3",

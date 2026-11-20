@@ -1,4 +1,4 @@
-# PAR — Milestone 1 contract architecture
+# PAR — contract architecture and PQC integration
 
 This document records the design decisions for the Solidity foundation: the review of the QoreChain
 Asset Kit, the choice of historical-balance mechanism, the contract layout and the post-quantum
@@ -196,23 +196,31 @@ mldsa87.verify(publicKey, messageBytes, signature); // true
 ```
 
 The library's `hybridSignBytes` helpers are for native-lane QoreChain transactions and are not used
-here. `tools/pqc-sign` reproduces the message encoding and asserts the same hashes as
+here. `tools/pqc-sign/sign.mjs` reproduces the message encoding, asserts the same hashes as
 `test/AuthorizationMessage.t.sol`, signs both PAR action types locally, verifies them and rejects a
-tampered message. It never prints or persists the secret key.
+tampered message. That offline check never prints or persists its ephemeral secret key.
+
+For a real issuer, `tools/pqc-sign/keygen.mjs` writes an ML-DSA-87 key in the official
+`qorechaind` file format (hex secret, mode 0600, outside the repository), `register.mjs` prepares and
+verifies the `MsgRegisterPQCKeyV2` proof of possession, and `authorize.mjs` reads the registered key
+from `pqcKeyStatus`, signs the exact contract message or fixture, verifies locally and prepares the
+`pqcVerify` calldata. None of these tools builds or broadcasts a transaction.
 
 ### Test doubles vs real verification
 
 `test/mocks/Mocks.sol` contains `MockPqcKeyStatus` and `MockPqcVerify`, etched at the real precompile
 addresses in Foundry tests. They let the unit tests exercise encoding, gating, nonce and fail-closed
 behaviour. **They do not perform any cryptography.** Real ML-DSA-87 signing and verification is
-exercised offline by `tools/pqc-sign` with the official library, but no test verifies a signature
-against the live precompile yet.
+exercised offline by `tools/pqc-sign` with the official library; `tools/pqc-sign/verify-live.mjs`
+checks the same signature path against the live precompile with `eth_call`.
 
 ## 5. Testnet preflight (read-only)
 
 `tools/preflight/preflight.mjs` was run against `https://evm-testnet.qore.host` on 20 November 2026
-(block 10,441,938). It sends only `eth_chainId`, `eth_blockNumber`, `eth_getBlockByNumber`,
-`eth_getCode` and `eth_call`; it holds no key and sends no transaction.
+(block 10,442,536). It sends only `eth_chainId`, `eth_blockNumber`, `eth_getBlockByNumber`,
+`eth_getCode` and `eth_call`; it holds no key and sends no transaction. With an issuer address it
+exits non-zero unless the key is a registered, possession-proven ML-DSA-87 key with the exact
+2,752-byte response required by `PqcIssuerAuthorizer`.
 
 | Check | Result |
 |---|---|
@@ -226,7 +234,8 @@ against the live precompile yet.
 
 No address was supplied for a real holder query, so the key-status probe used the zero address and
 is labelled as a synthetic probe. It confirms the four-field layout but says nothing about any real
-account's registration or possession status.
+account's registration or possession status. Once an issuer is registered, running the same tool
+with its `0x` address is the acceptance check for registration.
 
 ## 6. Known limitations and open technical questions
 
@@ -258,20 +267,27 @@ account's registration or possession status.
    observed. Payment reconciliation is planned for a later milestone.
 10. **Gas.** A real `pqcVerify` call costs about 85,000 gas at the precompile plus calldata and ABI
     overhead; a transaction should budget well above 300,000 gas.
+11. **Registered issuer still not exercised.** The registration and authorization tooling is ready,
+    but no funded testnet issuer account exists and no registration has been broadcast, so the
+    registered-key path through `BondServicing` remains untested on chain.
 
 ## 7. Next steps for the first real on-chain signature verification
 
-Not attempted in this milestone (no deployment, broadcast or private key was authorized):
+Preparation is complete; no deployment, registration or broadcast has been performed. The exact
+account and registration procedure is in [issuer-setup.md](issuer-setup.md).
 
-1. Choose a testnet EVM account and register its ML-DSA-87 key with a proof of possession on the
-   native lane (`MsgRegisterPQCKeyV2`); confirm `pqcKeyStatus` returns the four fields with
-   `possessionProven = true` using `tools/preflight/preflight.mjs <address>`.
-2. Deploy `BondToken` and `BondServicing` to testnet 9800 (dry run first), with the issuer account
-   holding `ISSUER_ROLE` and its registered key. This requires an open EVM authorization window.
-3. Open a coupon period, wait past its record-date block, and call
-   `couponFinalizationMessage(periodId, deadline)` to obtain the exact 256 bytes.
-4. Sign those bytes with `mldsa87.sign(secretKey, messageBytes)` from `@qorechain/pqc`, submit
-   `finalizeCoupon(periodId, deadline, signature)` from the issuer, and confirm the event/nonce.
-5. Repeat with a deliberately wrong key, message and expired deadline; each must revert and leave the
-   nonce unchanged.
-6. Add a minimal reconciliation export and token retirement after redemption.
+1. Create a fresh `eth_secp256k1` (coin 60) testnet account, fund it with test QOR, and generate a
+   dedicated ML-DSA-87 key with `keygen.mjs` or `qorechaind tx pqc gen-key`.
+2. Verify the proof of possession locally with `register.mjs`, build the unsigned
+   `MsgRegisterPQCKeyV2` with `--generate-only`, and wait for explicit authorization before
+   broadcasting the registration. It must be the account's first transaction.
+3. Confirm `tools/preflight/preflight.mjs <0x>` exits `0` with `registered`, `algorithmId=1`,
+   `pubkeyLength=2592` and `possessionProven=true`.
+4. Open a bounded EVM authorization window from the native lane (broadcast; not authorized yet).
+5. Deploy `BondToken` and `BondServicing` to testnet 9800 (dry run first), grant `ISSUER_ROLE`, open
+   a coupon period and pass its record-date block.
+6. Run `authorize.mjs` with the deployed contract to sign `couponFinalizationMessage`, submit
+   `finalizeCoupon(periodId, deadline, signature)` from the registered issuer, and confirm the
+   event/nonce. Repeat wrong key, tampered message and expired deadline; each must revert without
+   consuming the nonce.
+7. Add a minimal reconciliation export and token retirement after redemption.
