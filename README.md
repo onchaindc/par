@@ -20,7 +20,8 @@ Milestone 1 (Solidity foundation), Milestone 2A (PQC security correction and rea
 | Read-only testnet preflight | complete; strict issuer validation (chain 9800) |
 | Registered issuer setup and PoP tooling | prepared; no registration broadcast |
 | Payment reconciliation | planned |
-| QoreChain testnet deployment and registered-issuer transaction | planned |
+| QoreChain testnet deployment | script implemented, unit-tested and simulated on chain 9800; broadcast pending a funded, window-enabled deployer |
+| Registered-issuer transaction | planned |
 | Frontend | planned |
 
 ## Architecture
@@ -95,7 +96,7 @@ Repository structure:
 - `contracts/` — Solidity contracts and interfaces
 - `test/` — Foundry tests and precompile test doubles
 - `docs/` — architecture and design notes
-- `script/` — Foundry scripts (reserved for the testnet milestone)
+- `script/` — `Deploy.s.sol` (testnet deployment), `DemoPaymentToken.sol`
 - `app/` — TypeScript application code (reserved for the frontend milestone)
 
 Read-only testnet preflight and PQC tooling:
@@ -112,6 +113,17 @@ node tools/preflight/preflight.mjs [issuer-address]
 See [docs/issuer-setup.md](docs/issuer-setup.md) for the exact testnet account creation,
 `MsgRegisterPQCKeyV2` proof-of-possession, registration and verification procedure. All registration
 commands there are listed without broadcasting; the tooling is read-only.
+
+Testnet deployment ([docs/deployment.md](docs/deployment.md)):
+
+```bash
+forge script script/Deploy.s.sol --rpc-url https://evm-testnet.qore.host --sender <operational-evm-address>
+forge test --match-contract DeployScriptTest
+```
+
+The simulation needs no key and no EVM window. Broadcasting requires an operational coin-60 account
+that is funded, has its own registered ML-DSA-87 key and an open EVM authorization window; see the
+prerequisite table and verification checklist in the deployment doc.
 
 Housekeeping:
 

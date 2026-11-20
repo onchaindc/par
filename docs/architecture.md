@@ -307,9 +307,10 @@ account and registration procedure is in [issuer-setup.md](issuer-setup.md).
 3. Confirm `tools/preflight/preflight.mjs <0x>` exits `0` with `registered`, `algorithmId=1`,
    `pubkeyLength=2592` and `possessionProven=true`.
 4. Open a bounded EVM authorization window from the native lane (broadcast; not authorized yet).
-5. Deploy `BondToken` and `BondServicing` to testnet 9800 (dry run first), passing the operational
-   EVM issuer to the constructor; that account receives `ISSUER_ROLE` and `DEFAULT_ADMIN_ROLE`, and
-   the registered PQC identity receives no role.
+5. Deploy `BondToken`, `PqcIssuerAuthorizer` and `BondServicing` to testnet 9800 with
+   `script/Deploy.s.sol` (simulate first; see [deployment.md](deployment.md)), passing the operational
+   EVM issuer as broadcaster and constructor argument; that account receives `ISSUER_ROLE` and
+   `DEFAULT_ADMIN_ROLE`, and the registered PQC identity receives no role.
 6. Run `authorize.mjs` with the deployed contract and the registered PQC key to sign
    `couponFinalizationMessage`, submit `finalizeCoupon(periodId, deadline, signature)` from the
    operational issuer, and confirm the event/nonce. Repeat wrong signer, tampered message and
