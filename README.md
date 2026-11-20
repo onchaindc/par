@@ -4,62 +4,128 @@
 
 Par is an open-source bond servicing application for tokenized assets. It handles investor entitlement snapshots, coupon distributions, maturity redemption, payment claims and reconciliation, with post-quantum authorization for sensitive issuer operations using QoreChain.
 
-## Overview
-
-Par provides infrastructure for servicing tokenized bonds. Core functions include:
-
-- Bond configuration and payment schedules
-- Historical ownership snapshots
-- Coupon calculation and distribution
-- Maturity redemption
-- Investor payment claims
-- Payment reconciliation
-- ML-DSA authorization through QoreChain's PQC verification capabilities
-
-This describes the planned product scope. Features listed below are not yet implemented unless explicitly stated otherwise.
-
-## Architecture
-
-Planned components:
-
-- Smart contracts for bond configuration, entitlement snapshots, coupon distribution, redemption and claims (Solidity / Foundry)
-- Off-chain services or scripts for schedule calculation, reconciliation and reporting (TypeScript)
-- Authorization layer using QoreChain post-quantum verification for sensitive issuer operations
-
-Details of contract design, data models and integration points will be added as the implementation progresses.
-
-## Development
-
-Repository structure (initial):
-
-- `contracts/` — Solidity contracts
-- `test/` — Foundry tests
-- `script/` — Foundry deployment and utility scripts
-- `app/` — TypeScript application code
-- `docs/` — additional documentation
-
-Setup and build instructions will be added once tooling is configured.
-
-## Security
-
-Sensitive issuer operations are intended to require post-quantum authorization via QoreChain's ML-DSA verification capabilities. Concrete authorization flows, key management and threat model will be documented as they are designed and implemented.
-
-No contracts or authorization mechanisms are deployed or active in this repository yet.
-
 ## Status
+
+Milestone 1 (Solidity foundation) and Milestone 2A (PQC security correction and read-only testnet validation) are implemented and tested. There is no frontend, deployment or transaction-level QoreChain integration yet.
 
 | Component | Status |
 |-----------|--------|
-| Bond configuration and schedules | planned |
-| Historical ownership snapshots | planned |
-| Coupon calculation and distribution | planned |
-| Maturity redemption | planned |
-| Investor payment claims | planned |
+| Bond configuration and schedules | implemented |
+| Historical ownership snapshots | implemented |
+| Coupon calculation and distribution | implemented |
+| Maturity redemption | implemented |
+| Investor payment claims | implemented |
+| Funded / claimed / outstanding tracking | implemented |
+| ML-DSA-87 authorization (QoreChain) | implemented; four-field key status with proof of possession; local signing and read-only live `pqcVerify` verified |
+| Read-only testnet preflight | complete (chain 9800) |
 | Payment reconciliation | planned |
-| ML-DSA authorization (QoreChain) | planned |
-| Foundry tests | planned |
-| TypeScript services / app | planned |
+| QoreChain testnet deployment and registered-issuer transaction | planned |
+| Frontend | planned |
 
-## License
+## Architecture
 
-MIT
+```
+BondToken (ERC-20 + AccessControl + balance checkpoints)
+   ▲ balanceOfAt / totalSupplyAt
+   │
+BondServicing (AccessControl + ReentrancyGuard + SafeERC20)
+   │  terms, coupon periods, funding, claims, redemption
+   ▼
+IIssuerAuthorizer ── PqcIssuerAuthorizer ── 0x0A02 pqcKeyStatus
+                                          └─ 0x0A01 pqcVerify
+```
+
+See [docs/architecture.md](docs/architecture.md) for the QoreChain Asset Kit review, licensing analysis, the historical-balance design comparison and the PQC authorization flow.
+
+### Bond token
+
+`BondToken` is a transferable ERC-20 with an immutable supply cap and issuer-controlled minting (`MINTER_ROLE`). Every mint and transfer writes a per-account checkpoint, so `balanceOfAt(account, block)` and `totalSupplyAt(block)` answer historical ownership questions for any past block without snapshots or a holder list.
+
+### Bond servicing
+
+`BondServicing` registers one bond's terms: payment token, maturity, annual coupon rate in basis points, payments per year and face value per token. It then supports:
+
+- Opening coupon periods and setting a future record-date block. The record date is locked once its block is reached, so it cannot be chosen retroactively.
+- Finalising a period: freezes the record date, coupon per token and the exact funding requirement from historical supply. Requires `ISSUER_ROLE` and a valid ML-DSA-87 signature.
+- Funding a period with `SafeERC20`; partial top-ups are allowed, over-funding is rejected.
+- Investor claims computed from `balanceOfAt(recordDate)`, exactly once per period, only when fully funded.
+- Principal redemption after maturity, with its own historical record date, funding and one-time claims.
+- `required / funded / claimed / outstanding` views per coupon period and for redemption.
+
+### Post-quantum authorization
+
+Sensitive issuer actions (`finalizeCoupon`, `declareRedemption`) require two factors: the `ISSUER_ROLE` and a fresh ML-DSA-87 signature verified on chain.
+
+`PqcIssuerAuthorizer` reads the issuer's registered public key from **PQC Key Status at `0x0A02`** and requires the exact four-field response: `registered == true`, algorithm id 1 (ML-DSA-87), a 2,592-byte key and `possessionProven == true`. The three-field legacy layout, unproven keys, malformed data and missing precompiles are rejected. It then calls **PQC Verify at `0x0A01`** with the 4,627-byte signature over the action message. The two precompiles are never confused: `0x0A02` identifies the key, `0x0A01` verifies the signature.
+
+The signed 256-byte message binds the chain, servicing contract, bond, action type, a one-time authorization nonce, a deadline and the action parameters. Signatures cannot be replayed across actions or chains, and expire. `couponFinalizationMessage(periodId, deadline)` and `redemptionDeclarationMessage(recordDateBlock, deadline)` return the exact bytes an issuer must sign; `tools/pqc-sign` demonstrates signing them with the official `@qorechain/pqc` package and asserts the same hashes as a Solidity test.
+
+The selectors and encoding are pinned against QoreChain's `qorechain-core` ABI helpers: `pqcVerify(bytes,bytes,bytes)` is `0xf52bde0a` and `pqcKeyStatus(address)` is `0x850dfe51`. A read-only testnet preflight (`tools/preflight/preflight.mjs`) confirmed chain ID 9800, the four-field key-status response and an active `pqcVerify`. A second read-only check (`tools/pqc-sign/verify-live.mjs`) had the live precompile accept a locally generated ML-DSA-87 signature and reject a tampered message.
+
+**Foundry cannot execute QoreChain precompiles.** The test suite etches clearly labelled test doubles at the real addresses; they exercise authorization logic but perform no ML-DSA-87 cryptography. The offline signing check does real ML-DSA-87 signing and verification with the official library. A read-only check against the live precompile accepted a locally generated signature; a registered-issuer transaction is still pending.
+
+## Development
+
+Requirements: [Foundry](https://book.getfoundry.sh/) (tested with forge 1.10.0) and a Solidity 0.8.28 toolchain.
+
+```bash
+git clone --recurse-submodules https://github.com/onchaindc/par
+cd par
+forge build
+forge test
+```
+
+If the repository was cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+Dependencies:
+
+- OpenZeppelin Contracts 5.1.0 (MIT)
+- forge-std 1.9.7 (MIT OR Apache-2.0)
+- QoreChain interfaces: `IQorePqcKeyStatus` from the QoreChain Asset Kit v0.1.0 (Apache-2.0) and `IQorePqcVerify` from the QoreChain docs (MIT), attributed in [NOTICE](NOTICE).
+
+Repository structure:
+
+- `contracts/` — Solidity contracts and interfaces
+- `test/` — Foundry tests and precompile test doubles
+- `docs/` — architecture and design notes
+- `script/` — Foundry scripts (reserved for the testnet milestone)
+- `app/` — TypeScript application code (reserved for the frontend milestone)
+
+Read-only testnet preflight and local signing check:
+
+```bash
+node tools/preflight/preflight.mjs [address]
+(cd tools/pqc-sign && npm install && npm start)
+(cd tools/pqc-sign && node verify-live.mjs)
+```
+
+Housekeeping:
+
+```bash
+forge fmt
+```
+
+## Security
+
+Implemented protections:
+
+- exactly-once coupon and principal claims;
+- record dates locked at their block and frozen on finalization;
+- distributions cannot be claimed unless fully funded, and funding cannot exceed the requirement;
+- `ReentrancyGuard` and checks-effects-interactions around token transfers;
+- Solidity 0.8 checked arithmetic and `Math.mulDiv` for entitlement math;
+- `SafeERC20` for all payment-token movements;
+- separated `ISSUER_ROLE` and `TREASURER_ROLE`;
+- fail-closed ML-DSA-87 authorization: four-field key status with proof of possession, nonce- and deadline-bound, domain-separated messages.
+
+Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the unresolved `pqcKeyStatus` return-layout question, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
+
+Nothing in this repository is deployed or audited.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

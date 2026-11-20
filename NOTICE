@@ -1,0 +1,26 @@
+PAR
+Copyright (c) 2026 onchaindc
+Licensed under the MIT License (see LICENSE).
+
+Third-party material included in this repository
+------------------------------------------------
+1. IQorePqcKeyStatus.sol
+   QoreChain Asset Kit v0.1.0, Copyright 2026 QoreChain Association
+   Licensed under the Apache License, Version 2.0.
+   Source: https://github.com/qorechain/qorechain-asset-kit (contracts/src/interfaces/IQorePqcKeyStatus.sol)
+   The file retains its SPDX-License-Identifier: Apache-2.0 header.
+   Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+2. IQorePqcVerify.sol
+   Solidity interface published in the QoreChain EVM precompile documentation, MIT licensed.
+   Source: https://docs.qorechain.io/developer-guide/evm-precompiles/
+
+Dependencies (not copied into this repository; pinned as git submodules under lib/)
+----------------------------------------------------------------------------------
+- OpenZeppelin Contracts 5.1.0 — MIT
+- forge-std 1.9.7 — MIT OR Apache-2.0
+
+Development-only tooling under tools/ (not part of the contracts)
+-----------------------------------------------------------------
+- @qorechain/pqc 0.2.3 — Apache-2.0 (official QoreChain post-quantum library)
+- ethers 6.x — MIT (ABI encoding in the signing check)
