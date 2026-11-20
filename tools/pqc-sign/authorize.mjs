@@ -6,26 +6,37 @@
 // signature. The authorization message binds that PQC identity explicitly.
 // The tool reads the exact message from a deployed PAR servicing contract when
 // one is given, otherwise it uses the Solidity-matched local fixture. It signs
-// the raw bytes with the local PQC key, verifies locally, prepares the pqcVerify
-// calldata and checks valid/wrong-key/tampered-message behaviour against the
-// live precompile with eth_call. It NEVER builds or broadcasts a transaction,
-// connects a wallet or prints the secret key.
+// the raw bytes with a local PQC key, or accepts a signature produced by an
+// isolated signer via --signature-file, verifies it locally against the
+// registered key, prepares the pqcVerify calldata and checks
+// valid/wrong-key/tampered-message behaviour against the live precompile with
+// eth_call. It NEVER builds or broadcasts a transaction, connects a wallet or
+// prints the secret key.
 //
 // Usage:
 //   npm run authorize -- \
 //     --issuer 0xYourRegisteredIssuer \
 //     --key-file ~/.qorechaind/pqc/par-issuer-mldsa.dilithium
 //
-//   npm run authorize -- --issuer 0x... --key-file ... \
+//   npm run authorize -- --issuer 0x... --signature-file /secure/coupon.sig \
 //     --servicing 0xDeployedBondServicing --period-id 0 --deadline 1893456000
+//
+// --key-file and --signature-file are mutually exclusive. The external form
+// never reads key material: the signature file holds exactly 4,627 bytes of
+// ML-DSA-87 signature (hex, optional 0x prefix and whitespace) and is always
+// verified against the public key returned by pqcKeyStatus.
 //
 // Without --servicing the local coupon fixture is used. That fixture is for
 // integration testing only; a signature over it is not valid for a deployed
 // contract with different addresses or parameters.
 
+import fs from "node:fs";
+import path from "node:path";
+
 import { Interface, getAddress, getBytes, hexlify, keccak256 } from "ethers";
 import { mldsa87 } from "@qorechain/pqc";
 import {
+  ML_DSA_87_SIGNATURE_BYTES,
   PQC_KEY_STATUS,
   PQC_VERIFY,
   TESTNET,
@@ -35,6 +46,7 @@ import {
   encodeKeyStatusCalldata,
   encodeVerifyCalldata,
   ethCall,
+  isHex,
   parseAccount,
   publicKeyFingerprint,
   readSecretKeyFile,
@@ -69,16 +81,40 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.log(`Usage: node authorize.mjs --issuer <0x> --key-file <path> [options]
+  console.log(`Usage: node authorize.mjs --issuer <0x> (--key-file <path> | --signature-file <path>) [options]
 
-  --rpc <url>          EVM RPC (default ${TESTNET.rpc})
-  --servicing <0x>     deployed BondServicing; reads couponFinalizationMessage
-  --period-id <uint>   required with --servicing
-  --deadline <uint64>  required with --servicing
-  --skip-live          skip the read-only pqcVerify eth_calls
+  --key-file <path>        local 0600 ML-DSA-87 hex secret key (signs here)
+  --signature-file <path>  external ML-DSA-87 signature, exactly ${ML_DSA_87_SIGNATURE_BYTES} bytes
+  --rpc <url>              EVM RPC (default ${TESTNET.rpc})
+  --servicing <0x>         deployed BondServicing; reads couponFinalizationMessage
+  --period-id <uint>       required with --servicing
+  --deadline <uint64>      required with --servicing
+  --skip-live              skip the read-only pqcVerify eth_calls
 
+--key-file and --signature-file are mutually exclusive. An external signature
+is verified against the registered key before use; no key material is read.
 The tool refuses non-testnet chains and unregistered/unproven issuer keys.
-It signs and verifies locally, then prepares pqcVerify calldata. No broadcast.`);
+It prepares pqcVerify calldata only. No broadcast.`);
+}
+
+function readSignatureFile(file) {
+  const resolved = path.resolve(file);
+  const stat = fs.lstatSync(resolved);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(`signature file must be a regular file, not a symlink: ${resolved}`);
+  }
+  const raw = fs
+    .readFileSync(resolved, "utf8")
+    .replace(/\s+/g, "")
+    .replace(/^0x/i, "");
+  if (!isHex(raw)) throw new Error(`signature file must contain hex only: ${resolved}`);
+  const signature = Uint8Array.from(Buffer.from(raw, "hex"));
+  if (signature.length !== ML_DSA_87_SIGNATURE_BYTES) {
+    throw new Error(
+      `signature file must contain exactly ${ML_DSA_87_SIGNATURE_BYTES} bytes, got ${signature.length}: ${resolved}`,
+    );
+  }
+  return signature;
 }
 
 function uint64(value, name) {
@@ -103,7 +139,11 @@ try {
     process.exit(0);
   }
   if (!args.issuer) throw new Error("--issuer is required");
-  if (!args["key-file"]) throw new Error("--key-file is required");
+  const hasKeyFile = args["key-file"] !== undefined;
+  const hasSignatureFile = args["signature-file"] !== undefined;
+  if (hasKeyFile === hasSignatureFile) {
+    throw new Error("provide exactly one of --key-file or --signature-file");
+  }
 
   const rpcUrl = args.rpc ?? TESTNET.rpc;
   const issuer = parseAccount(args.issuer);
@@ -137,8 +177,14 @@ try {
   }
   if (message.length !== 288) throw new Error(`unexpected PAR message length ${message.length}, expected 288`);
 
-  const secretKey = readSecretKeyFile(args["key-file"]);
-  const signature = mldsa87.sign(secretKey, message);
+  const signingSource = hasSignatureFile ? "external" : "local-key-file";
+  let signature;
+  if (hasSignatureFile) {
+    signature = readSignatureFile(args["signature-file"]);
+  } else {
+    const secretKey = readSecretKeyFile(args["key-file"]);
+    signature = mldsa87.sign(secretKey, message);
+  }
   const locallyVerified = mldsa87.verify(keyStatus.pubkey, message, signature);
 
   // Negative control: a different key signing the same message must fail.
@@ -176,6 +222,7 @@ try {
       chainId: "qorechain-diana",
       evmChainId: Number(BigInt(chainId)),
     },
+    signingSource,
     issuer: {
       evmAddress: issuer.evmAddress,
       qorAddress: issuer.qorAddress,
@@ -210,6 +257,7 @@ try {
     },
     livePrecompile: live,
     safety: {
+      privateKeyRead: signingSource === "local-key-file",
       secretKeyPrinted: false,
       transactionBuilt: false,
       transactionBroadcast: false,

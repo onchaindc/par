@@ -9,6 +9,7 @@
     "keygen": "node keygen.mjs",
     "register": "node register.mjs",
     "authorize": "node authorize.mjs",
+    "test": "node --test test/*.test.mjs",
     "verify-live": "node verify-live.mjs"
   },
   "dependencies": {

@@ -291,6 +291,28 @@ calldata, and checks valid / wrong-key / tampered-message results against the
 live precompile. It prints no secret and never builds or broadcasts a
 transaction.
 
+If the issuer key is held on a separate signer host, produce the signature
+there and hand off only the 4,627-byte signature file:
+
+```bash
+# on the isolated signer (key file at mode 0600, outside any checkout)
+node authorize.mjs --issuer <0x registered issuer> \
+  --key-file /secure/par-signer/pqc/par-issuer.dilithium \
+  --servicing <0x BondServicing> --period-id 0 --deadline 1893456000 \
+  > authorization.json
+
+# on the relaying host: no key material, signature is re-verified locally
+node authorize.mjs --issuer <0x registered issuer> \
+  --signature-file /secure/par-signer/coupon.sig \
+  --servicing <0x BondServicing> --period-id 0 --deadline 1893456000
+```
+
+`--key-file` and `--signature-file` are mutually exclusive; the external form
+reports `signingSource: "external"`, sets `privateKeyRead: false`, requires
+exactly 4,627 signature bytes, and fails unless the signature verifies against
+the public key in `pqcKeyStatus`. See
+[`tools/pqc-sign/README.md`](../tools/pqc-sign/README.md) for the full workflow.
+
 The resulting signature is submitted from the operational EVM issuer, not from
 the registered PQC identity. The PQC identity needs its registered key and, for
 the signing account itself, an EVM authorization window only if it also sends
@@ -308,5 +330,6 @@ window for the EVM lane.
 4. Registration needs the official full `qorechaind` release; the community
    build's `gen-key`/`cosign` are stubs.
 5. Mainnet remains out of scope and unresolved for `pqcKeyStatus` availability.
-6. The PQC key file is unencrypted by design of the CLI flow. Production key
-   custody (HSM or isolated signer) is not implemented.
+6. The PQC key file is unencrypted by design of the CLI flow. `authorize.mjs`
+   now accepts an isolated signer's signature (`--signature-file`), but no HSM
+   or remote-signing integration exists; custody is host-level and procedural.
