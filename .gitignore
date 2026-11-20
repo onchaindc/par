@@ -1,0 +1,27 @@
+# Foundry
+cache/
+out/
+broadcast/
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+
+# Keys and secrets
+*.key
+*.pem
+keys/
+secrets/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
