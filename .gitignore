@@ -27,3 +27,6 @@ secrets/
 # IDE
 .idea/
 .vscode/
+
+# Acceptance artefacts
+scripts/acceptance/shots/

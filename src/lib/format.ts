@@ -91,17 +91,54 @@ export function bpsToPercent(bps: number): number {
   return bps / 100;
 }
 
+function humanizeRevert(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+/**
+ * Walks the viem/wallet error chain so users see a wallet rejection or a named revert
+ * instead of viem's generic "An unknown RPC error occurred" wrapper.
+ */
 export function errorMessage(error: unknown): string {
   if (!error) return "Unknown error";
   if (typeof error === "string") return error;
+
+  const seen = new Set<unknown>();
+  let current = error as {
+    code?: number | string;
+    shortMessage?: string;
+    message?: string;
+    reason?: string;
+    data?: { errorName?: string };
+    cause?: unknown;
+  };
+
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if (current.code === 4001 || current.code === "ACTION_REJECTED") {
+      return "The wallet rejected the request.";
+    }
+    if (current.data?.errorName) {
+      return `Contract reverted: ${humanizeRevert(current.data.errorName)}.`;
+    }
+    if (typeof current.message === "string" && /user (rejected|denied)|rejected the request/i.test(current.message)) {
+      return "The wallet rejected the request.";
+    }
+    current = current.cause as typeof current;
+  }
+
   const candidate = error as {
     shortMessage?: string;
     message?: string;
     cause?: { shortMessage?: string; message?: string; reason?: string };
   };
   return (
-    candidate.shortMessage ??
     candidate.cause?.reason ??
+    (candidate.shortMessage && candidate.shortMessage !== "An unknown RPC error occurred."
+      ? candidate.shortMessage
+      : undefined) ??
     candidate.cause?.shortMessage ??
     candidate.message ??
     String(error)

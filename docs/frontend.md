@@ -85,11 +85,18 @@ approvals rather than unlimited ones.
 - `bun run build` — TypeScript and Vite production build.
 - ABI and decode validation against the live deployment: `terms()`, `couponPeriodCount()`, `redemption()`,
   `authorizationNonce()`, `ISSUER_ROLE`/`hasRole`, bond metadata, payment token reads, the 2,752-byte
-  `pqcKeyStatus` response and `Transfer` log scanning were all exercised against chain 9800 while building the
-  app.
-- Wallet-based write paths have not been executed end to end: the demo deployment has no coupon periods, and
-  redemption is before maturity. Their contract calls match the deployed ABI and are checked by TypeScript, but
-  they remain unverified on chain until the issuer opens and finalizes a period.
+  `pqcKeyStatus` response and `Transfer` log scanning were all exercised against chain 9800.
+- A full coupon lifecycle was run through the UI on chain 9800: period opening, a fresh ML-DSA-87 signature
+  over the contract message, on-chain signature verification, finalization, exact-amount approval, funding
+  and a holder claim, with record-date checkpointing checked by a post-record transfer.
+- Playwright checks cover desktop/tablet/mobile geometry, wallet connection, account changes, disconnect,
+  wrong-network switching, role gating, transaction confirmation and wallet-rejection states.
+
+The transaction hashes, reconciliation figures and remaining gaps are recorded in
+[acceptance.md](acceptance.md). Redemption remains untested because maturity is in 2030.
+
+Custom Solidity errors are included in the ABIs so viem decodes reverts such as `AlreadyClaimed` and
+`FundingExceedsRequirement` into readable text (`Contract reverted: …`).
 
 ## Limitations
 
@@ -99,3 +106,6 @@ approvals rather than unlimited ones.
   periods are created by the issuer with block-number record dates.
 - No historical price, yield or off-chain data is shown.
 - No mainnet support. Addresses and chain ID are fixed for the testnet deployment.
+- Wallet writes were exercised with an EIP-1193 signing bridge, not a real browser extension.
+- Redemption is disabled and untested before maturity; producing its signature is not covered by
+  `tools/pqc-sign/authorize.mjs`, which currently builds coupon-finalization messages only.

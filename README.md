@@ -21,7 +21,7 @@ The contracts are deployed and verified on QoreChain testnet (chain 9800), a ded
 | Registered issuer setup and PoP tooling | prepared; no registration broadcast |
 | Payment reconciliation | implemented in the application and on chain |
 | QoreChain testnet deployment | deployed and verified at block 10,462,390 on chain 9800 |
-| Registered-issuer transaction | key registered with proof of possession; PQC-authorised finalization not yet exercised |
+| Registered-issuer transaction | key registered with proof of possession; PQC-authorised coupon finalization executed on testnet |
 | Bond servicing frontend | implemented: overview, portfolio, issuer operations, claims, reconciliation and PQC verification |
 
 ## Architecture
@@ -146,7 +146,8 @@ Sensitive actions never sign in the browser: the panel shows the exact message r
 registered PQC identity, the authorization nonce and a deadline, verifies a pasted 4,627-byte ML-DSA-87
 signature on chain through `PqcIssuerAuthorizer`, and only then submits the transaction from the operational
 issuer wallet. The signing workflow is documented in [docs/issuer-setup.md](docs/issuer-setup.md) and
-[docs/frontend.md](docs/frontend.md).
+[docs/frontend.md](docs/frontend.md); the end-to-end testnet results are in
+[docs/acceptance.md](docs/acceptance.md).
 
 The UI needs no environment variables; the chain, addresses and deployment block are fixed in
 `src/config.ts`.
