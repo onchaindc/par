@@ -6,7 +6,7 @@ Par is an open-source bond servicing application for tokenized assets. It handle
 
 ## Status
 
-Milestone 1 (Solidity foundation), Milestone 2A (PQC security correction and read-only testnet validation) and Milestone 2B preparation (registered-issuer tooling) are implemented; the Solidity suite and local tooling are tested. No registration, deployment or transaction has been broadcast, and there is no frontend yet.
+The contracts are deployed and verified on QoreChain testnet (chain 9800), a dedicated operational deployer is registered with its own ML-DSA-87 key and an EVM authorization window, and the bond-servicing frontend is implemented. Coupon periods have not been opened yet, so no PQC-authorised finalization has been exercised on chain.
 
 | Component | Status |
 |-----------|--------|
@@ -19,10 +19,10 @@ Milestone 1 (Solidity foundation), Milestone 2A (PQC security correction and rea
 | ML-DSA-87 authorization (QoreChain) | implemented; four-field key status with proof of possession; local signing and read-only live `pqcVerify` verified |
 | Read-only testnet preflight | complete; strict issuer validation (chain 9800) |
 | Registered issuer setup and PoP tooling | prepared; no registration broadcast |
-| Payment reconciliation | planned |
-| QoreChain testnet deployment | script implemented, unit-tested and simulated on chain 9800; broadcast pending a funded, window-enabled deployer |
-| Registered-issuer transaction | planned |
-| Frontend | planned |
+| Payment reconciliation | implemented in the application and on chain |
+| QoreChain testnet deployment | deployed and verified at block 10,462,390 on chain 9800 |
+| Registered-issuer transaction | key registered with proof of possession; PQC-authorised finalization not yet exercised |
+| Bond servicing frontend | implemented: overview, portfolio, issuer operations, claims, reconciliation and PQC verification |
 
 ## Architecture
 
@@ -97,7 +97,8 @@ Repository structure:
 - `test/` — Foundry tests and precompile test doubles
 - `docs/` — architecture and design notes
 - `script/` — `Deploy.s.sol` (testnet deployment), `DemoPaymentToken.sol`
-- `app/` — TypeScript application code (reserved for the frontend milestone)
+- `src/` — Vite/React bond-servicing frontend
+- `index.html`, `vite.config.ts`, `tsconfig.json` — frontend entry and build configuration
 
 Read-only testnet preflight and PQC tooling:
 
@@ -113,6 +114,42 @@ node tools/preflight/preflight.mjs [issuer-address]
 See [docs/issuer-setup.md](docs/issuer-setup.md) for the exact testnet account creation,
 `MsgRegisterPQCKeyV2` proof-of-possession, registration and verification procedure. All registration
 commands there are listed without broadcasting; the tooling is read-only.
+
+## Application
+
+The bond-servicing frontend is a Vite + React + TypeScript application at the repository root. It reads the
+deployed contracts directly over the QoreChain EVM RPC and writes only through the connected injected wallet
+(MetaMask, Rabby or another EIP-1193 wallet on chain 9800). No private key, seed phrase or PQC key file is ever
+requested, stored or transmitted by the frontend.
+
+```bash
+bun install
+bun run dev        # http://localhost:5173
+bun run build      # typecheck + production bundle in dist/
+bun run typecheck
+```
+
+Sections:
+
+- **Overview** — immutable terms, supply cap utilisation, coupon math, projected calendar, on-chain holder
+  register, addresses and live PQC key status.
+- **Portfolio** — connected holder's balance, face value, coupon entitlements per period, claimability and
+  principal status.
+- **Issuer operations** — opening and re-dating coupon periods, finalizing with an externally produced
+  ML-DSA-87 signature, funding coupons and redemptions, declaring redemption, and the full authorization
+  requirements.
+- **Claims** — coupon claims per period and the one-time principal claim, enabled only when fully funded.
+- **Reconciliation** — required, funded, claimed, outstanding, unfunded liabilities and contract balance
+  coverage, plus control state (nonce, PQC key, roles).
+
+Sensitive actions never sign in the browser: the panel shows the exact message read from the contract, the
+registered PQC identity, the authorization nonce and a deadline, verifies a pasted 4,627-byte ML-DSA-87
+signature on chain through `PqcIssuerAuthorizer`, and only then submits the transaction from the operational
+issuer wallet. The signing workflow is documented in [docs/issuer-setup.md](docs/issuer-setup.md) and
+[docs/frontend.md](docs/frontend.md).
+
+The UI needs no environment variables; the chain, addresses and deployment block are fixed in
+`src/config.ts`.
 
 Testnet deployment ([docs/deployment.md](docs/deployment.md)):
 

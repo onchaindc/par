@@ -1,0 +1,65 @@
+import { parseAbi } from "viem";
+
+/** Minimal, hand-checked ABIs for the deployed PAR contracts. */
+export const bondTokenAbi = parseAbi([
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function cap() view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address account) view returns (uint256)",
+  "function balanceOfAt(address account, uint256 blockNumber) view returns (uint256)",
+  "function totalSupplyAt(uint256 blockNumber) view returns (uint256)",
+  "function MINTER_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+]);
+
+export const servicingAbi = parseAbi([
+  "function bond() view returns (address)",
+  "function authorizer() view returns (address)",
+  "function ISSUER_ROLE() view returns (bytes32)",
+  "function TREASURER_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+  "function terms() view returns ((address paymentToken, uint64 maturity, uint16 couponRateBps, uint8 paymentsPerYear, uint128 faceValuePerToken) terms)",
+  "function couponPeriodCount() view returns (uint256)",
+  "function couponPeriod(uint256 periodId) view returns ((uint64 recordDateBlock, bool finalized, uint128 couponPerToken, uint256 requiredFunding, uint256 funded, uint256 claimed) period)",
+  "function couponStatus(uint256 periodId) view returns (uint256 required, uint256 funded, uint256 claimed, uint256 outstanding)",
+  "function couponEntitlement(uint256 periodId, address investor) view returns (uint256)",
+  "function hasClaimedCoupon(uint256 periodId, address investor) view returns (bool)",
+  "function redemption() view returns ((bool declared, uint64 recordDateBlock, uint128 principalPerToken, uint256 requiredFunding, uint256 funded, uint256 claimed) redemption)",
+  "function redemptionStatus() view returns (uint256 required, uint256 funded, uint256 claimed, uint256 outstanding)",
+  "function redemptionEntitlement(address investor) view returns (uint256)",
+  "function hasClaimedPrincipal(address investor) view returns (bool)",
+  "function authorizationNonce() view returns (uint256)",
+  "function couponFinalizationMessage(uint256 periodId, uint64 deadline) view returns (bytes)",
+  "function redemptionDeclarationMessage(uint64 recordDateBlock, uint64 deadline) view returns (bytes)",
+  "function openCouponPeriod(uint64 recordDateBlock) returns (uint256 periodId)",
+  "function setCouponRecordDate(uint256 periodId, uint64 newRecordDateBlock)",
+  "function finalizeCoupon(uint256 periodId, uint64 deadline, bytes signature)",
+  "function fundCoupon(uint256 periodId, uint256 amount)",
+  "function claimCoupon(uint256 periodId) returns (uint256 amount)",
+  "function claimPrincipal() returns (uint256 amount)",
+  "function declareRedemption(uint64 recordDateBlock, uint64 deadline, bytes signature)",
+  "function fundRedemption(uint256 amount)",
+]);
+
+export const authorizerAbi = parseAbi([
+  "function pqcIssuer() view returns (address)",
+  "function isAuthorized(address issuer, bytes message, bytes signature) view returns (bool)",
+  "function ML_DSA_87() view returns (uint8)",
+  "function ML_DSA_87_PUBLIC_KEY_BYTES() view returns (uint256)",
+  "function registeredPublicKey(address account) view returns (bool available, bytes pubkey)",
+]);
+
+export const paymentTokenAbi = parseAbi([
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+]);
