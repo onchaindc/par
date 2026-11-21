@@ -33,9 +33,9 @@ export function Portfolio({
 
   const header = (
     <PageHeader
-      eyebrow="Investor register"
+      eyebrow="Connected wallet"
       title="Your position"
-      description="Balances, coupon entitlements and principal claim status for the connected address, read from the servicing and bond contracts."
+      description="Your holdings, coupon payouts and principal claim."
       actions={
         wallet.address ? (
           <Pill tone={wallet.isCorrectChain ? "ok" : "warn"}>
@@ -56,17 +56,8 @@ export function Portfolio({
       <div className="stack stack--lg">
         {header}
         <Card>
-          <Empty
-            title="Connect a wallet to view your position"
-            action={
-              <button type="button" className="btn btn--primary" onClick={onConnect} disabled={wallet.connecting}>
-                {wallet.connecting ? <span className="spinner" /> : null}
-                Connect wallet
-              </button>
-            }
-          >
-            Holdings and entitlements are read directly from QoreChain for the connected address. No account is
-            created and no key material is requested by this application.
+          <Empty title="Connect to see your position">
+            We'll read your holdings from QoreChain. No account needed, no keys requested.
           </Empty>
         </Card>
         <div className="ghost-grid">
@@ -79,7 +70,7 @@ export function Portfolio({
             <span className="ghost-card__value">—</span>
           </div>
           <div className="ghost-card">
-            <span className="ghost-card__label">Claimable now</span>
+            <span className="ghost-card__label">Ready to claim</span>
             <span className="ghost-card__value">—</span>
           </div>
         </div>
@@ -129,40 +120,39 @@ export function Portfolio({
           label="Bond holding"
           value={formatToken(account.bondBalance, bond.decimals, 2)}
           unit={bond.symbol}
-          foot={`${formatPercent(share)} of outstanding supply`}
+          foot={`${formatPercent(share)} of issued supply`}
         />
         <Stat
           label="Face value"
           value={formatToken(principalAtFace, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot="Principal at maturity, before any distribution"
+          foot="paid at maturity"
         />
         <Stat
-          label="Coupon per period"
+          label="Coupon"
           value={formatToken(couponPerPeriod, bond.paymentDecimals, 4)}
           unit={bond.paymentSymbol}
-          foot={`${bond.terms.paymentsPerYear} payments per year`}
+          foot={`${bond.terms.paymentsPerYear} payments a year`}
         />
         <Stat
-          label="Claimable now"
+          label="Ready to claim"
           tone={claimableTotal > 0n ? "positive" : "default"}
           value={formatToken(claimableTotal, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot={claimable.length > 0 ? `${claimable.length} funded period(s)` : "No funded entitlement outstanding"}
+          foot={claimable.length > 0 ? `${claimable.length} payout${claimable.length === 1 ? "" : "s"} waiting` : "Nothing waiting"}
         />
       </div>
 
       {account.bondBalance === 0n ? (
         <Notice tone="warn" title="No bond tokens at this address">
-          Entitlements are based on the balance checkpointed at each period's record-date block, so buying after a
-          record date does not earn that period's coupon.
+          Coupons go by your balance on each record date, so tokens bought later don't earn that period.
         </Notice>
       ) : null}
 
       <div className="layout-split">
         <Card
-          title="Coupon entitlements"
-          hint="Entitlements exist only for finalized periods and are fixed by the balance held at the record-date block."
+          title="Coupon payouts"
+          hint="Set by your balance on each record date."
           flush
           actions={
             claimableTotal > 0n ? (
@@ -175,9 +165,7 @@ export function Portfolio({
         >
           {bond.periods.length === 0 ? (
             <div className="card__pad">
-              <Empty title="No coupon period opened">
-                The issuer has not opened a period yet. Your coupons will appear here once a period is finalized.
-              </Empty>
+              <Empty title="No coupon period yet">Your coupons appear here once the issuer opens a period.</Empty>
             </div>
           ) : (
             <div className="table-wrap">
@@ -239,7 +227,7 @@ export function Portfolio({
           )}
         </Card>
 
-        <Card title="Principal at maturity" hint="Paid once to whoever held tokens at the declared record date.">
+        <Card title="Principal at maturity" hint="Paid once to holders on the redemption record date.">
           <KeyValue
             rows={[
               { label: "Maturity", value: formatDate(bond.terms.maturity) },
@@ -270,18 +258,15 @@ export function Portfolio({
               Go to principal claim
             </button>
           ) : (
-            <p className="card__note">
-              Principal is not a transferable claim: it is paid once to whoever held tokens at the declared record-date
-              block.
-            </p>
+            <p className="card__note">Principal is paid once, to whoever held tokens on the record date.</p>
           )}
         </Card>
       </div>
 
-      <Card title="Token balance detail" hint="The bond token uses 18 decimals; the payment token uses its own precision.">
+      <Card title="Balances">
         <div className="detail-grid">
           <div className="detail-item">
-            <span className="field__label">Bond balance (raw units)</span>
+            <span className="field__label">Bond balance, raw units</span>
             <span className="mono detail-item__value">{account.bondBalance.toString()}</span>
           </div>
           <div className="detail-item">

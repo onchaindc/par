@@ -2,10 +2,10 @@ import type { TxState } from "../hooks/useTx";
 import { IconAlert, IconCheck, IconClose } from "./icons";
 
 const TITLES: Record<Exclude<TxState["status"], "idle">, string> = {
-  signing: "Awaiting wallet approval",
-  pending: "Transaction submitted",
-  confirmed: "Transaction confirmed",
-  error: "Transaction failed",
+  signing: "Confirm in your wallet",
+  pending: "Sending…",
+  confirmed: "Done",
+  error: "Something went wrong",
 };
 
 export function TxToast({ tx, onClose }: { tx: TxState; onClose: () => void }) {

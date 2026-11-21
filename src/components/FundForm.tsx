@@ -42,10 +42,8 @@ export function FundForm({
 
   return (
     <div className="panel">
-      <div className="panel__title">Fund this distribution</div>
-      <p className="panel__text">
-        Partial top-ups are allowed; over-funding is rejected on chain. The treasurer must hold {symbol}.
-      </p>
+      <div className="panel__title">Add funds</div>
+      <p className="panel__text">Top up any amount. Over-funding is rejected. You need {symbol}.</p>
       <div className="form-row">
         <label className="field">
           <span className="field__label">Amount ({symbol})</span>
@@ -60,8 +58,7 @@ export function FundForm({
             inputMode="decimal"
           />
           <span className="field__hint">
-            Remaining: {formatToken(remaining, decimals, 4)} {symbol} · allowance{" "}
-            {formatToken(allowance, decimals, 2)}
+            {formatToken(remaining, decimals, 4)} {symbol} to go · approved {formatToken(allowance, decimals, 2)}
           </span>
         </label>
         {needsApproval ? (
@@ -101,7 +98,7 @@ export function FundForm({
         )}
       </div>
       {localError ? <p className="form-error">{localError}</p> : null}
-      {!canFund && wallet.address ? <p className="form-hint">Funding requires TREASURER_ROLE.</p> : null}
+      {!canFund && wallet.address ? <p className="form-hint">Needs the treasurer role.</p> : null}
     </div>
   );
 }

@@ -76,66 +76,58 @@ export function Issuer({
   return (
     <div className="stack stack--lg">
       <PageHeader
-        eyebrow="Issuer operations"
-        title="Schedule, finalize, fund"
-        description="Sensitive actions require both the operational ISSUER_ROLE and a fresh ML-DSA-87 signature from the registered PQC identity. Funding requires TREASURER_ROLE."
+        eyebrow="Issuer"
+        title="Schedule & finalize"
+        description="Open coupon periods, finalize them with a post-quantum signature, and fund payouts."
         actions={
           <div className="role-pills">
-            <Pill tone={isIssuer ? "ok" : "neutral"}>{isIssuer ? "Issuer role" : "No issuer role"}</Pill>
-            <Pill tone={isTreasurer ? "ok" : "neutral"}>{isTreasurer ? "Treasurer role" : "No treasurer role"}</Pill>
+            <Pill tone={isIssuer ? "ok" : "neutral"}>{isIssuer ? "Issuer" : "No issuer role"}</Pill>
+            <Pill tone={isTreasurer ? "ok" : "neutral"}>{isTreasurer ? "Treasurer" : "No treasurer role"}</Pill>
           </div>
         }
       />
 
       {!wallet.address ? (
-        <Notice tone="warn" title="Read-only until a wallet is connected">
-          Connect the operational EVM issuer wallet to act. This page remains readable without a wallet.
+        <Notice tone="warn" title="Read-only for now">
+          Connect the operations wallet to make changes.
           <button type="button" className="link-btn" onClick={onConnect}>
             Connect wallet
           </button>
         </Notice>
       ) : !isIssuer && !isTreasurer ? (
-        <Notice tone="warn" title="This wallet has no operational role">
-          The connected address holds neither ISSUER_ROLE nor TREASURER_ROLE on this servicing contract. Operations
-          are read-only; the PQC identity must never be used as a workaround.
+        <Notice tone="warn" title="No permissions on this wallet">
+          This address has no issuer or treasurer role, so everything here is read-only.
         </Notice>
       ) : null}
 
       <Card
-        title="Authorization requirements"
-        hint="What the chain requires for each sensitive operation."
+        title="How approval works"
         actions={<span className="card-icon"><IconShield size={16} /></span>}
       >
         <div className="step-list step-list--inline">
           <div className="step-list__item">
             <span className="step-list__num">1</span>
             <div>
-              <div className="step-list__title">Operational role</div>
-              <div className="step-list__text">
-                The submitting wallet holds ISSUER_ROLE (finalization, declaration) or TREASURER_ROLE (funding). It
-                pays gas and needs its own PQC key and an open EVM authorization window.
-              </div>
+              <div className="step-list__title">Your wallet</div>
+              <div className="step-list__text">The operations wallet submits and pays gas.</div>
             </div>
           </div>
           <div className="step-list__item">
             <span className="step-list__num">2</span>
             <div>
-              <div className="step-list__title">PQC signature</div>
+              <div className="step-list__title">Post-quantum signature</div>
               <div className="step-list__text">
-                <Address value={bond.pqcIssuer} chars={5} /> signs the exact message returned by the contract. Key{" "}
-                {bond.keyStatus?.registered ? "registered" : "not registered"} on 0x0A02, algorithm{" "}
-                {bond.keyStatus?.algorithmId ?? "—"},{" "}
-                {bond.keyStatus?.possessionProven ? "possession proven" : "possession not proven"}.
+                <Address value={bond.pqcIssuer} chars={5} /> signs the exact message from the contract. Key{" "}
+                {bond.keyStatus?.registered ? "registered" : "not registered"}.
               </div>
             </div>
           </div>
           <div className="step-list__item">
             <span className="step-list__num">3</span>
             <div>
-              <div className="step-list__title">Nonce and deadline</div>
+              <div className="step-list__title">Nonce & deadline</div>
               <div className="step-list__text">
-                The message binds chain 9800, the servicing contract, the bond, the PQC identity, the action, nonce{" "}
-                <span className="mono">{bond.nonce.toString()}</span> and a deadline. Finalizing consumes the nonce.
+                Each signature works once. Current nonce <span className="mono">{bond.nonce.toString()}</span>.
               </div>
             </div>
           </div>
@@ -143,13 +135,13 @@ export function Issuer({
       </Card>
 
       <Card
-        title="Open a coupon period"
-        hint="Record dates are block numbers, not timestamps. The date must be in the future, unique, and later than the previous period's record date."
-        actions={<Pill>{formatBlock(bond.blockNumber)} current block</Pill>}
+        title="New coupon period"
+        hint="Pick a future block. It must be later than the last record date."
+        actions={<Pill>Block {formatBlock(bond.blockNumber)}</Pill>}
       >
         <div className="form-row">
           <label className="field">
-            <span className="field__label">Record-date block</span>
+            <span className="field__label">Record block</span>
             <input
               className="input"
               value={newRecordBlock}
@@ -158,8 +150,7 @@ export function Issuer({
               spellCheck={false}
             />
             <span className="field__hint">
-              Default is current + 1,000 blocks. Previous record date:{" "}
-              {lastRecordBlock > 0n ? formatBlock(lastRecordBlock) : "none"}.
+              Defaults to 1,000 blocks ahead. Last record date: {lastRecordBlock > 0n ? formatBlock(lastRecordBlock) : "none"}.
             </span>
           </label>
           <button
@@ -172,15 +163,12 @@ export function Issuer({
           </button>
         </div>
         {recordError ? <p className="form-error">{recordError}</p> : null}
-        {!isIssuer && wallet.address ? <p className="form-hint">Requires ISSUER_ROLE.</p> : null}
+        {!isIssuer && wallet.address ? <p className="form-hint">Needs the issuer role.</p> : null}
       </Card>
 
       {bond.periods.length === 0 ? (
         <Card title="Coupon periods">
-          <Empty title="No periods yet">
-            Open the first coupon period above. A period can be finalized only after its record-date block has been
-            produced.
-          </Empty>
+          <Empty title="No periods yet">Open the first coupon period above.</Empty>
         </Card>
       ) : (
         <div className="stack">
@@ -214,7 +202,7 @@ export function Issuer({
         now={now}
       />
 
-      <Card title="Allocated bond supply" hint="Minting is capped on chain and requires MINTER_ROLE.">
+      <Card title="Supply">
         <div className="detail-grid">
           <div className="detail-item">
             <span className="field__label">Current supply</span>
@@ -223,13 +211,13 @@ export function Issuer({
             </span>
           </div>
           <div className="detail-item">
-            <span className="field__label">Authorised cap</span>
+            <span className="field__label">Cap</span>
             <span className="num detail-item__value">
               {formatToken(bond.cap, bond.decimals, 0)} {bond.symbol}
             </span>
           </div>
           <div className="detail-item">
-            <span className="field__label">Coupon at current supply</span>
+            <span className="field__label">Coupon at this supply</span>
             <span className="num detail-item__value">
               {formatToken(
                 (bond.totalSupply * perToken) / 10n ** 18n,

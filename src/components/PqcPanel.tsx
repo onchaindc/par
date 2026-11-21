@@ -122,13 +122,13 @@ export function PqcPanel({
           <p className="pqc__desc">{description}</p>
         </div>
         <Pill tone={verify.status === "valid" ? "ok" : "gold"}>
-          {verify.status === "valid" ? "Verified" : "Signature required"}
+          {verify.status === "valid" ? "Verified" : "Needs signature"}
         </Pill>
       </div>
 
       <div className="pqc__grid">
         <label className="field">
-          <span className="field__label">Signature deadline (local time)</span>
+          <span className="field__label">Deadline</span>
           <input
             className="input"
             type="datetime-local"
@@ -140,16 +140,18 @@ export function PqcPanel({
           </span>
         </label>
         <div className="field">
-          <span className="field__label">Authorization nonce</span>
+          <span className="field__label">Nonce</span>
           <span className="pqc__nonce mono">{nonce.toString()}</span>
-          <span className="field__hint">Consumed when the action lands on chain.</span>
+          <span className="field__hint">Used up when this lands on chain.</span>
         </div>
       </div>
 
       <div className="field pqc__message">
-        <span className="field__label">Message to sign · {messageLabel}</span>
+        <span className="field__label" title={messageLabel}>
+          Message
+        </span>
         {loadingMessage ? (
-          <span className="mono muted">Reading message from the contract…</span>
+          <span className="mono muted">Reading from the contract…</span>
         ) : message ? (
           <details className="pqc__message-detail">
             <summary>
@@ -168,10 +170,10 @@ export function PqcPanel({
       </div>
 
       <div className="field">
-        <span className="field__label">ML-DSA-87 signature (hex, 4,627 bytes)</span>
+        <span className="field__label">Signature (4,627 bytes)</span>
         <textarea
           className="textarea pqc__signature"
-          placeholder="0x… produced offline by the registered PQC signer"
+          placeholder="0x… from your offline signer"
           value={signature}
           onChange={(event) => {
             setSignature(event.target.value);
@@ -182,7 +184,7 @@ export function PqcPanel({
         <span className="field__hint">
           {signatureBytes > 0
             ? `${signatureBytes.toLocaleString()} bytes · expected 4,627`
-            : "The signature never leaves this page except in the transaction you submit."}
+            : "Paste the signature produced by the offline key."}
         </span>
       </div>
 
@@ -194,7 +196,7 @@ export function PqcPanel({
           onClick={verifySignature}
         >
           {verify.status === "checking" ? <span className="spinner" /> : null}
-          Verify on chain
+          Check signature
         </button>
         <button
           type="button"
@@ -212,7 +214,7 @@ export function PqcPanel({
       {verify.status === "valid" ? (
         <div className="sig-status sig-status--ok">
           <IconCheck size={14} />
-          Signature accepted by 0x0A01 for this message and nonce.
+          Signature verified. You can submit now.
         </div>
       ) : null}
       {verify.status === "invalid" ? (
@@ -224,10 +226,9 @@ export function PqcPanel({
       {disabled && disabledReason ? <p className="pqc__disabled">{disabledReason}</p> : null}
 
       <details className="pqc__offline">
-        <summary>Sign offline with the registered PQC identity</summary>
+        <summary>How to sign offline</summary>
         <Notice>
-          The key file must never touch this browser. Run the repository tooling on the signer host, then paste only
-          the signature here.
+          Keep the key file off this browser. Sign on the signer host, then paste the signature here.
         </Notice>
         <pre className="code">{signingCommand}</pre>
       </details>

@@ -82,7 +82,7 @@ export function RedemptionCard({
   return (
     <Card
       title="Principal redemption"
-      hint="One declaration after maturity, one funding pool, one claim per holder."
+hint="One declaration after maturity, then one claim per holder."
       actions={
         <Pill tone={bond.redemption.declared ? "ok" : maturityReached ? "warn" : "neutral"}>
           {bond.redemption.declared ? "Declared" : maturityReached ? "Maturity reached" : "Before maturity"}
@@ -101,49 +101,46 @@ export function RedemptionCard({
               <span className="num detail-item__value">{relativeTime(bond.terms.maturity)}</span>
             </div>
             <div className="detail-item">
-              <span className="field__label">Principal per token</span>
+              <span className="field__label">Per token</span>
               <span className="num detail-item__value">
                 {formatToken(bond.terms.faceValuePerToken, bond.paymentDecimals, 2)} {bond.paymentSymbol}
               </span>
             </div>
           </div>
           {!maturityReached ? (
-            <Notice tone="warn" title="Declaration is disabled before maturity">
-              The contract rejects declareRedemption before maturity. This action becomes available on{" "}
-              {formatDate(bond.terms.maturity)}.
+            <Notice tone="warn" title="Not available yet">
+              Principal can be declared from {formatDate(bond.terms.maturity)}.
             </Notice>
           ) : null}
           <label className="field">
-            <span className="field__label">Record-date block</span>
+            <span className="field__label">Record block</span>
             <input
               className="input"
               value={recordBlock}
               onChange={(event) => setRecordBlock(event.target.value)}
               spellCheck={false}
             />
-            <span className="field__hint">
-              Must be a past block (defaults to the latest block). Entitlements use balances at this block.
-            </span>
+            <span className="field__hint">A past block. Payouts use balances at this block.</span>
           </label>
           <PqcPanel
-            title="Declare with ML-DSA-87 authorization"
-            description="The message commits to the record-date block, principal per token, required funding and deadline."
+            title="Declare with a signature"
+            description="The message locks in the record block, principal per token and deadline."
             loadMessage={loadRedemptionMessage}
             onSubmit={declare}
             submitLabel="Declare redemption"
             disabled={!isIssuer || !maturityReached || !wallet.isCorrectChain}
             disabledReason={
               !maturityReached
-                ? "Maturity has not been reached."
+                ? "Not available until maturity."
                 : !isIssuer
-                  ? "This wallet does not hold ISSUER_ROLE."
+                  ? "This wallet has no issuer role."
                   : !wallet.isCorrectChain
-                    ? "Switch to QoreChain testnet first."
+                    ? "Switch to QoreChain first."
                     : undefined
             }
-            signingCommand={`Sign redemptionDeclarationMessage(<record-block>, <deadline>) with the registered
-ML-DSA-87 key. This repository's authorize tool covers coupon finalization;
-use an ML-DSA-87 signer over the exact message bytes shown above.`}
+            signingCommand={`Sign the exact message bytes above with the registered
+ML-DSA-87 key. The repository's authorize tool covers coupon finalization;
+use any ML-DSA-87 signer for redemption declarations.`}
             nonce={bond.nonce}
             pqcIssuer={bond.pqcIssuer}
             messageLabel="redemptionDeclarationMessage"
@@ -154,11 +151,11 @@ use an ML-DSA-87 signer over the exact message bytes shown above.`}
         <div className="stack">
           <div className="detail-grid detail-grid--3">
             <div className="detail-item">
-              <span className="field__label">Record-date block</span>
+              <span className="field__label">Record block</span>
               <span className="num detail-item__value">{formatBlock(bond.redemption.recordDateBlock)}</span>
             </div>
             <div className="detail-item">
-              <span className="field__label">Required funding</span>
+              <span className="field__label">Needed</span>
               <span className="num detail-item__value">
                 {formatToken(bond.redemption.required, bond.paymentDecimals, 2)} {bond.paymentSymbol}
               </span>
@@ -208,7 +205,7 @@ use an ML-DSA-87 signer over the exact message bytes shown above.`}
             />
           ) : (
             <Notice tone="ok" title="Fully funded">
-              Holders can now claim principal once each from the Claims page.
+              Holders can claim principal once each from Claims.
             </Notice>
           )}
         </div>

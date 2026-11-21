@@ -81,13 +81,13 @@ export function WalletSheet({
       title={connected ? "Wallet" : "Connect a wallet"}
       description={
         connected
-          ? "The account this session uses for reads, claims and issuer operations."
-          : "Reads work without a wallet. Connect to claim distributions or run issuer operations."
+          ? "This account is used for reads, claims and issuer actions."
+          : "Reading is open to everyone. Connect to claim payouts or manage the bond."
       }
     >
       {wallet.error ? (
         <div className="wallet-sheet__alert">
-          <Notice tone="danger" title="Wallet request failed">
+          <Notice tone="danger" title="Couldn't connect">
             {wallet.error}
             <button type="button" className="link-btn" onClick={wallet.clearError}>
               Dismiss
@@ -119,7 +119,7 @@ export function WalletSheet({
               </div>
             </div>
             {wallet.isCorrectChain ? (
-              <span className="wallet-account__chain mono">ID {qoreChain.id}</span>
+              <span className="wallet-account__chain">Chain {qoreChain.id}</span>
             ) : (
               <button type="button" className="btn btn--secondary btn--sm" onClick={() => void wallet.switchNetwork()}>
                 <IconSwitch size={14} />
@@ -130,8 +130,7 @@ export function WalletSheet({
 
           {!wallet.isCorrectChain ? (
             <Notice tone="warn">
-              This wallet is on chain {wallet.chainId ?? "unknown"}. Switch to {qoreChain.name} ({qoreChain.id}) before
-              submitting a transaction.
+              This wallet is on chain {wallet.chainId ?? "unknown"}. Switch to {qoreChain.name} to transact.
             </Notice>
           ) : null}
 
@@ -146,7 +145,7 @@ export function WalletSheet({
             </button>
           </div>
           <p className="wallet-sheet__note">
-            Disconnecting only ends this browser session. It never changes the on-chain record of your holdings.
+            Disconnecting only ends this browser session. Your holdings stay on chain.
           </p>
         </div>
       ) : (
@@ -155,7 +154,7 @@ export function WalletSheet({
             <div className="wallet-options__heading">
               <span>Browser wallets</span>
               <span className="wallet-options__count">
-                {installed.length > 0 ? `${installed.length} detected` : "None detected"}
+                {installed.length > 0 ? `${installed.length} found` : "None found"}
               </span>
             </div>
             {installed.length > 0 ? (
@@ -185,10 +184,7 @@ export function WalletSheet({
             ) : (
               <div className="wallet-none">
                 <IconWallet size={18} />
-                <p>
-                  No browser wallet answered this page. Install MetaMask or Rabby, unlock it and reload — or scan the
-                  WalletConnect code from a mobile wallet.
-                </p>
+                <p>No wallet detected. Install MetaMask or Rabby, or scan with a mobile wallet below.</p>
               </div>
             )}
           </div>
@@ -196,7 +192,7 @@ export function WalletSheet({
           {installable.length > 0 ? (
             <div className="wallet-options__section wallet-options__install">
               <div className="wallet-options__heading">
-                <span>Not detected</span>
+                <span>Install</span>
               </div>
               <ul className="install-list">
                 {installable.map((entry) => (
@@ -234,9 +230,7 @@ export function WalletSheet({
             <span className="wallet-option__text">
               <span className="wallet-option__name">WalletConnect</span>
               <span className="wallet-option__tag">
-                {wallet.walletConnectAvailable
-                  ? "Scan with any mobile wallet"
-                  : "Needs a Reown project id (VITE_REOWN_PROJECT_ID)"}
+                {wallet.walletConnectAvailable ? "Scan with any mobile wallet" : "Not configured yet"}
               </span>
             </span>
             {wallet.connecting && pending === "walletconnect" ? (
@@ -247,7 +241,7 @@ export function WalletSheet({
           </button>
 
           <p className="wallet-sheet__note">
-            PAR never asks for a seed phrase, private key or PQC key file. Transactions are approved in your wallet.
+            PAR never asks for a seed phrase or private key. You approve every transaction in your wallet.
           </p>
         </div>
       )}

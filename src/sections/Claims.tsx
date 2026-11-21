@@ -80,9 +80,9 @@ export function Claims({
 
   const header = (
     <PageHeader
-      eyebrow="Distributions"
+      eyebrow="Payouts"
       title="Claims"
-      description="Claims are pull-based and exactly once. A coupon is claimable only when its period is finalized and the treasurer has funded the full requirement."
+      description="Collect your coupons and principal. Each payout can be claimed once."
       actions={
         wallet.address ? (
           <Pill tone={!wallet.isCorrectChain ? "warn" : claimableTotal > 0n ? "ok" : "neutral"}>
@@ -107,45 +107,42 @@ export function Claims({
       <div className="stack stack--lg">
         {header}
         <Card>
-          <Empty
-            title="Connect a wallet to claim"
-            action={
-              <button type="button" className="btn btn--primary" onClick={onConnect} disabled={wallet.connecting}>
-                {wallet.connecting ? <span className="spinner" /> : null}
-                Connect wallet
-              </button>
-            }
-          >
-            Claims are tied to the holder address at the record-date block, not to the wallet that submitted a
-            previous transaction.
-          </Empty>
+          <Empty title="Connect to claim">We'll show what's ready for your address.</Empty>
         </Card>
+        <div className="ghost-grid">
+          <div className="ghost-card">
+            <span className="ghost-card__label">Ready to claim</span>
+            <span className="ghost-card__value">—</span>
+          </div>
+          <div className="ghost-card">
+            <span className="ghost-card__label">Redemption</span>
+            <span className="ghost-card__value">—</span>
+          </div>
+          <div className="ghost-card">
+            <span className="ghost-card__label">Your holding</span>
+            <span className="ghost-card__value">—</span>
+          </div>
+        </div>
         <div className="step-list">
           <div className="step-list__item">
             <span className="step-list__num">1</span>
             <div>
-              <div className="step-list__title">Issuer finalizes a period</div>
-              <div className="step-list__text">
-                The coupon amount is frozen from supply checkpointed at the record-date block.
-              </div>
+              <div className="step-list__title">The issuer finalizes a period</div>
+              <div className="step-list__text">The coupon amount is fixed on chain.</div>
             </div>
           </div>
           <div className="step-list__item">
             <span className="step-list__num">2</span>
             <div>
-              <div className="step-list__title">Treasurer funds it in full</div>
-              <div className="step-list__text">
-                Claims stay disabled on chain until the full requirement is in the servicing contract.
-              </div>
+              <div className="step-list__title">The treasurer funds it</div>
+              <div className="step-list__text">Claims open only when it's fully funded.</div>
             </div>
           </div>
           <div className="step-list__item">
             <span className="step-list__num">3</span>
             <div>
               <div className="step-list__title">You claim once</div>
-              <div className="step-list__text">
-                Each period can be claimed once per holder. Principal is claimed once at redemption.
-              </div>
+              <div className="step-list__text">One claim per period, and one for principal.</div>
             </div>
           </div>
         </div>
@@ -159,14 +156,14 @@ export function Claims({
 
       <div className="stat-grid stat-grid--3">
         <Stat
-          label="Available to claim"
+          label="Ready to claim"
           tone={claimableTotal > 0n ? "positive" : "default"}
           value={formatToken(claimableTotal, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot={`${claimableCount} funded, unclaimed period(s)`}
+          foot={claimableCount > 0 ? `${claimableCount} payout${claimableCount === 1 ? "" : "s"} waiting` : "Nothing waiting"}
         />
         <Stat
-          label="Redemption status"
+          label="Redemption"
           value={
             bond.redemption.declared ? (account?.principalClaimed ? "Claimed" : "Declared") : "Not declared"
           }
@@ -180,22 +177,18 @@ export function Claims({
           label="Your bond balance"
           value={account ? formatToken(account.bondBalance, bond.decimals, 2) : "—"}
           unit={bond.symbol}
-          foot="Used to derive coupon and principal entitlements"
+          foot="sets your coupons and principal"
         />
       </div>
 
       <Card
-        title="Coupon claims"
-        hint="Each period can be claimed once per holder."
+        title="Coupons"
         flush
-        actions={<Pill>{rows.length} period(s)</Pill>}
+        actions={<Pill>{rows.length || "None"}</Pill>}
       >
         {rows.length === 0 ? (
           <div className="card__pad">
-            <Empty title="Nothing to claim yet">
-              No coupon period has been opened. The issuer must open a period, wait for its record date, finalize it
-              with a PQC signature and then fund it.
-            </Empty>
+            <Empty title="Nothing to claim yet">A coupon appears once the issuer opens and funds a period.</Empty>
           </div>
         ) : (
           <div className="table-wrap">
@@ -277,8 +270,8 @@ export function Claims({
       </Card>
 
       <Card
-        title="Principal redemption"
-        hint="Declared once after maturity, funded by the treasurer, then claimed once per holder."
+        title="Principal"
+        hint="Declared after maturity, then funded and claimed once."
         actions={
           <Pill tone={bond.redemption.declared ? "ok" : "neutral"}>
             {bond.redemption.declared ? "Declared" : "Not declared"}
@@ -286,9 +279,8 @@ export function Claims({
         }
       >
         {!bond.redemption.declared ? (
-          <Notice tone="warn" title="Redemption has not been declared">
-            It becomes possible only after maturity on {formatDate(bond.terms.maturity)}. Until then this panel is
-            informational only.
+          <Notice tone="warn" title="Not open yet">
+            Principal can be claimed after maturity on {formatDate(bond.terms.maturity)}.
           </Notice>
         ) : (
           <div className="stack">
@@ -317,9 +309,7 @@ export function Claims({
               ]}
             />
             {bond.redemption.funded < bond.redemption.required ? (
-              <Notice tone="warn">
-                The redemption is not fully funded yet, so claims are disabled on chain.
-              </Notice>
+              <Notice tone="warn">Not fully funded yet, so claims are paused.</Notice>
             ) : null}
             <button
               type="button"

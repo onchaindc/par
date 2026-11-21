@@ -30,10 +30,10 @@ type TabKey = "overview" | "portfolio" | "issuer" | "claims" | "ledger";
 
 const TABS: Array<{ key: TabKey; label: string; short: string; icon: ReactNode }> = [
   { key: "overview", label: "Overview", short: "Overview", icon: <IconOverview size={18} /> },
-  { key: "portfolio", label: "Portfolio", short: "Position", icon: <IconPortfolio size={18} /> },
-  { key: "issuer", label: "Issuer operations", short: "Issuer", icon: <IconIssuer size={18} /> },
+  { key: "portfolio", label: "Your position", short: "Position", icon: <IconPortfolio size={18} /> },
+  { key: "issuer", label: "Issuer", short: "Issuer", icon: <IconIssuer size={18} /> },
   { key: "claims", label: "Claims", short: "Claims", icon: <IconClaims size={18} /> },
-  { key: "ledger", label: "Reconciliation", short: "Books", icon: <IconLedger size={18} /> },
+  { key: "ledger", label: "Funds", short: "Funds", icon: <IconLedger size={18} /> },
 ];
 
 function WalletButton({ wallet, onClick }: { wallet: WalletState; onClick: () => void }) {
@@ -89,7 +89,7 @@ export default function App() {
         <div className="sidebar__brand">
           <span className="brand-mark">PAR</span>
           <span className="brand-meta">
-            Bond servicing
+            Par Bond 2030
             <br />
             QoreChain testnet
           </span>
@@ -109,7 +109,7 @@ export default function App() {
               {item.key === "issuer" && data ? <span className="side-nav__badge">{data.periods.length}</span> : null}
               {item.key === "claims" && data && data.periods.length > 0 ? (
                 <span className="side-nav__badge">
-                  {data.periods.filter((period) => period.finalized).length} final
+                  {data.periods.filter((period) => period.finalized).length}
                 </span>
               ) : null}
             </button>
@@ -122,9 +122,9 @@ export default function App() {
               <IconWallet size={17} />
             </span>
             <span className="wallet-card__text">
-              <span className="wallet-card__label">{wallet.address ? "Wallet connected" : "Wallet"}</span>
+              <span className="wallet-card__label">{wallet.address ? "Wallet" : "Not connected"}</span>
               <span className="wallet-card__value">
-                {wallet.address ? shortAddress(wallet.address, 5) : "Connect to transact"}
+                {wallet.address ? shortAddress(wallet.address, 5) : "Connect wallet"}
               </span>
             </span>
             {wallet.address ? (
@@ -195,11 +195,10 @@ export default function App() {
             <div className="banner banner--warn">
               <IconAlert size={17} />
               <div className="banner__text">
-                Your wallet is on chain {wallet.chainId ?? "unknown"}. PAR is deployed on {qoreChain.name} (9800);
-                reads are unaffected, but transactions must be sent on the correct network.
+                You're on chain {wallet.chainId ?? "unknown"}. Switch to {qoreChain.name} to send transactions.
               </div>
               <button type="button" className="btn btn--secondary btn--sm" onClick={() => void wallet.switchNetwork()}>
-                Switch to 9800
+                Switch to {qoreChain.id}
               </button>
             </div>
           ) : null}
@@ -248,7 +247,7 @@ export default function App() {
                 <div className="banner banner--warn">
                   <IconAlert size={17} />
                   <div className="banner__text">
-                    Showing the last successful read; the latest refresh failed. {bond.error}
+                    Showing your last read — refresh failed. {bond.error}
                   </div>
                 </div>
               ) : null}
@@ -300,15 +299,13 @@ export default function App() {
                 </span>
               </div>
               <p className="footer__note">
-                Testnet demonstration only. Contracts are unaudited. This interface reads QoreChain and submits only
-                the transactions you approve in your wallet; it never asks for a private key, seed phrase or PQC key
-                file.
+                Testnet demo · contracts unaudited. PAR never asks for a private key, seed phrase or PQC key file.
               </p>
             </div>
             <div className="footer__block footer__block--end">
               <button type="button" className="btn btn--ghost btn--sm" onClick={refreshAll}>
                 <IconRefresh size={14} />
-                Refresh reads
+                Refresh
               </button>
               <div className="footer__links">
                 <a href={DOCS.deployment} target="_blank" rel="noreferrer">

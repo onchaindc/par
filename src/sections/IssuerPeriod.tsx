@@ -101,8 +101,8 @@ npm run authorize -- \\
   return (
     <Card
       title={`Coupon period ${period.id}`}
-      hint={`Record-date block ${formatBlock(period.recordDateBlock)}${
-        reached ? " · reached" : ` · ${formatBlock(period.recordDateBlock - bond.blockNumber)} blocks away`
+      hint={`Record block ${formatBlock(period.recordDateBlock)}${
+        reached ? " · reached" : ` · in ${formatBlock(period.recordDateBlock - bond.blockNumber)} blocks`
       }`}
       actions={
         <Pill tone={period.finalized ? "ok" : reached ? "warn" : "neutral"}>
@@ -114,13 +114,13 @@ npm run authorize -- \\
         <div className="stack">
           <div className="detail-grid detail-grid--2">
             <div className="detail-item">
-              <span className="field__label">Expected coupon per token</span>
+              <span className="field__label">Coupon per token</span>
               <span className="num detail-item__value">
                 {formatToken(perToken, bond.paymentDecimals, 4)} {bond.paymentSymbol}
               </span>
             </div>
             <div className="detail-item">
-              <span className="field__label">Requirement at current supply</span>
+              <span className="field__label">Needed at this supply</span>
               <span className="num detail-item__value">
                 {formatToken(perToken * (bond.totalSupply / 10n ** 18n), bond.paymentDecimals, 2)}{" "}
                 {bond.paymentSymbol}
@@ -128,23 +128,20 @@ npm run authorize -- \\
             </div>
           </div>
           <p className="card__note">
-            The amount is fixed at finalization from supply checkpointed at block{" "}
-            {formatBlock(period.recordDateBlock)}.
+            The amount is fixed at finalization, from supply at block {formatBlock(period.recordDateBlock)}.
           </p>
 
           {!reached ? (
             <div className="form-row">
               <label className="field">
-                <span className="field__label">Change record-date block</span>
+                <span className="field__label">Record block</span>
                 <input
                   className="input"
                   value={recordDraft}
                   onChange={(event) => setRecordDraft(event.target.value)}
                   spellCheck={false}
                 />
-                <span className="field__hint">
-                  Allowed only while the current record date is still in the future.
-                </span>
+                <span className="field__hint">Only while the record date is still ahead.</span>
               </label>
               <button
                 type="button"
@@ -152,24 +149,24 @@ npm run authorize -- \\
                 disabled={!wallet.walletClient || !isIssuer || busy || !wallet.isCorrectChain}
                 onClick={updateRecordDate}
               >
-                Update date
+Update
               </button>
             </div>
           ) : (
             <PqcPanel
-              title="Finalize with ML-DSA-87 authorization"
-              description="Review the exact message, paste the isolated signer's signature, verify it on chain, then submit from the operational issuer."
+              title="Finalize with a signature"
+              description="Paste the signature from the offline signer, check it, then submit."
               loadMessage={loadFinalizeMessage}
               onSubmit={finalize}
               submitLabel="Finalize coupon"
               disabled={!isIssuer || !wallet.isCorrectChain}
               disabledReason={
                 !wallet.address
-                  ? "Connect the operational issuer wallet."
+                  ? "Connect the issuer wallet first."
                   : !isIssuer
-                    ? "This wallet does not hold ISSUER_ROLE."
+                    ? "This wallet has no issuer role."
                     : !wallet.isCorrectChain
-                      ? "Switch to QoreChain testnet first."
+                      ? "Switch to QoreChain first."
                       : undefined
               }
               signingCommand={signingCommand}
@@ -190,7 +187,7 @@ npm run authorize -- \\
               </span>
             </div>
             <div className="detail-item">
-              <span className="field__label">Required funding</span>
+              <span className="field__label">Needed</span>
               <span className="num detail-item__value">
                 {formatToken(period.required, bond.paymentDecimals, 2)} {bond.paymentSymbol}
               </span>
@@ -207,12 +204,12 @@ npm run authorize -- \\
             <div className="fund-status__row">
               <span className="small muted">
                 {progress.toFixed(1)}% funded ·{" "}
-                {formatToken(remaining > 0n ? remaining : 0n, bond.paymentDecimals, 2)} {bond.paymentSymbol} outstanding
+                {formatToken(remaining > 0n ? remaining : 0n, bond.paymentDecimals, 2)} {bond.paymentSymbol} to go
               </span>
               {period.funded >= period.required ? (
-                <Pill tone="ok">Fully funded · claims open</Pill>
+                <Pill tone="ok">Funded</Pill>
               ) : (
-                <Pill tone="warn">Funding open</Pill>
+                <Pill tone="warn">Needs funding</Pill>
               )}
             </div>
           </div>

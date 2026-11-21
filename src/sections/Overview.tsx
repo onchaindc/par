@@ -1,4 +1,4 @@
-import { ADDRESSES, DEPLOY_BLOCK, DOCS, qoreChain } from "../config";
+import { ADDRESSES } from "../config";
 import type { BondData } from "../hooks/useBondData";
 import {
   bpsToPercent,
@@ -35,14 +35,14 @@ export function Overview({
   return (
     <div className="stack stack--lg">
       <PageHeader
-        eyebrow="Issue dossier · Par Bond 2030"
+        eyebrow="Par Bond 2030"
         title={bond.name}
-        description="A fixed-rate tokenised bond with checkpointed ownership and pull-based servicing. Coupons and principal are funded by the treasurer and claimed by holders; sensitive issuer actions carry a post-quantum signature from a separate registered identity."
+        description="A fixed-rate bond on QoreChain. Coupons are paid twice a year, principal at maturity."
       >
         <div className="page-head__meta">
-          <Pill tone="ok">Live on chain {qoreChain.id}</Pill>
-          <Pill>{bpsToPercent(terms.couponRateBps)}% fixed rate</Pill>
-          <Pill>{formatDate(terms.maturity)} maturity</Pill>
+          <Pill tone="ok">Live</Pill>
+          <Pill>{bpsToPercent(terms.couponRateBps)}% fixed</Pill>
+          <Pill>Matures {formatDate(terms.maturity)}</Pill>
           <Pill tone="gold">
             {bond.holders.length} holder{bond.holders.length === 1 ? "" : "s"}
           </Pill>
@@ -51,34 +51,31 @@ export function Overview({
 
       <div className="stat-grid">
         <Stat
-          label="Bond supply"
+          label="Issued"
           value={formatToken(bond.totalSupply, bond.decimals, 0)}
           unit={bond.symbol}
-          foot={`Face value ${formatToken(faceValue, paymentDecimals, 2)} ${bond.paymentSymbol}`}
+          foot={`${formatToken(faceValue, paymentDecimals, 2)} ${bond.paymentSymbol} face value`}
         />
         <Stat
-          label="Cap utilisation"
+          label="Cap used"
           value={formatPercent(utilisation)}
-          foot={`${formatToken(bond.totalSupply, bond.decimals, 0)} of ${formatToken(bond.cap, bond.decimals, 0)} authorised`}
+          foot={`of ${formatToken(bond.cap, bond.decimals, 0)} ${bond.symbol} authorised`}
         />
         <Stat
-          label="Coupon per token"
+          label="Coupon"
           value={formatToken(perPeriod, paymentDecimals, 4)}
           unit={bond.paymentSymbol}
-          foot={`Per period · ${formatToken(annualCoupon, paymentDecimals, 4)} annual`}
+          foot={`per token · ${formatToken(annualCoupon, paymentDecimals, 4)} a year`}
         />
         <Stat
           label="Maturity"
           value={formatDate(terms.maturity)}
-          foot={`${relativeTime(terms.maturity)} · principal at face`}
+          foot={`${relativeTime(terms.maturity)} · paid at face`}
         />
       </div>
 
       <div className="layout-split">
-        <Card
-          title="Terms of issue"
-          hint="Immutable terms read from BondServicing. They cannot be changed after deployment."
-        >
+        <Card title="Terms" hint="Fixed at deployment and cannot change.">
           <KeyValue
             rows={[
               { label: "Bond token", value: <Address value={ADDRESSES.bond} chars={5} /> },
@@ -100,9 +97,6 @@ export function Overview({
               },
               { label: "Supply cap", value: `${formatToken(bond.cap, bond.decimals, 0)} ${bond.symbol}` },
               { label: "Maturity", value: formatDate(terms.maturity) },
-              { label: "Record date method", value: "Block checkpoints" },
-              { label: "Deployed at block", value: formatBlock(DEPLOY_BLOCK) },
-              { label: "Latest block", value: formatBlock(bond.blockNumber) },
             ]}
           />
           <div className="terms-progress">
@@ -115,20 +109,17 @@ export function Overview({
         </Card>
 
         <Card
-          title="Post-quantum authorization"
-          hint="Two identities, deliberately separate."
-          actions={
-            <Pill tone={keyReady ? "ok" : "bad"}>{keyReady ? "Key ready" : "Key unavailable"}</Pill>
-          }
+          title="Signing keys"
+          hint="Issuer actions need two separate identities."
+          actions={<Pill tone={keyReady ? "ok" : "bad"}>{keyReady ? "Key ready" : "Key unavailable"}</Pill>}
         >
           <div className="auth-blocks">
             <div className="auth-block">
-              <div className="auth-block__label">Registered PQC signer</div>
+              <div className="auth-block__label">Post-quantum signer</div>
               <Address value={bond.pqcIssuer} chars={6} />
               <p className="auth-block__detail">
-                ML-DSA-87 · algorithm {bond.keyStatus?.algorithmId ?? "—"} ·{" "}
-                {bond.keyStatus ? `${bond.keyStatus.publicKeyBytes.toLocaleString()} byte key` : "no key status"} ·{" "}
-                {bond.keyStatus?.possessionProven ? "possession proven" : "possession unproven"}
+                ML-DSA-87 · {bond.keyStatus ? `${bond.keyStatus.publicKeyBytes.toLocaleString()} byte key` : "no key"} ·{" "}
+                {bond.keyStatus?.possessionProven ? "proven" : "unproven"}
               </p>
               {bond.keyFingerprint ? (
                 <p className="auth-block__fingerprint mono" title={bond.keyFingerprint}>
@@ -137,47 +128,36 @@ export function Overview({
               ) : null}
             </div>
             <div className="auth-block">
-              <div className="auth-block__label">Operational EVM issuer</div>
-              <p className="auth-block__detail">
-                A separate account holds <span className="mono">DEFAULT_ADMIN_ROLE</span> and{" "}
-                <span className="mono">ISSUER_ROLE</span>, submits transactions and pays gas. It cannot produce the
-                PQC signature.
-              </p>
+              <div className="auth-block__label">Operations wallet</div>
+              <p className="auth-block__detail">Holds the issuer role and pays gas. It can't produce the PQC signature.</p>
             </div>
             <div className="auth-block auth-block--inline">
-              <div>
-                <div className="auth-block__label">Authorization nonce</div>
-                <div className="auth-block__nonce mono">{bond.nonce.toString()} consumed</div>
-              </div>
+              <div className="auth-block__label">Nonce</div>
               <p className="auth-block__detail">
-                Each finalization or redemption declaration consumes one nonce, so a signature cannot be replayed.
+                <span className="mono">{bond.nonce.toString()}</span> used · each signature works once.
               </p>
             </div>
           </div>
           <button type="button" className="btn btn--secondary btn--block" onClick={onOpenIssuer}>
-            Open issuer operations
+            Issuer operations
             <IconArrowRight size={15} />
           </button>
         </Card>
       </div>
 
       <div className="layout-split">
-        <Card
-          title="Coupon calendar"
-          hint="Derived from the maturity date and payment frequency. Actual periods are opened by the issuer with a specific future record-date block."
-          flush
-        >
+        <Card title="Coupon schedule" hint="Projected dates. The issuer opens each period on chain." flush>
           <ol className="timeline">
             {projected.map((date, index) => (
               <li className="timeline__item" key={date}>
                 <span className="timeline__marker" aria-hidden="true" />
                 <div className="timeline__body">
-                  <div className="timeline__title">Coupon {String(index + 1).padStart(2, "0")}</div>
-                  <div className="timeline__meta">Projected · {formatDate(date)}</div>
+                  <div className="timeline__title">Coupon {index + 1}</div>
+                  <div className="timeline__meta">{formatDate(date)}</div>
                 </div>
                 <div className="timeline__value">
-                  {formatToken(perPeriod, paymentDecimals, 4)}
-                  <small>{bond.paymentSymbol} / token</small>
+                  {formatToken(perPeriod, paymentDecimals, 4)} {bond.paymentSymbol}
+                  <small>per token</small>
                 </div>
               </li>
             ))}
@@ -185,31 +165,30 @@ export function Overview({
               <span className="timeline__marker" aria-hidden="true" />
               <div className="timeline__body">
                 <div className="timeline__title">Principal</div>
-                <div className="timeline__meta">Maturity · {formatDate(terms.maturity)}</div>
+                <div className="timeline__meta">{formatDate(terms.maturity)}</div>
               </div>
               <div className="timeline__value">
-                {formatToken(terms.faceValuePerToken, paymentDecimals, 2)}
-                <small>{bond.paymentSymbol} / token</small>
+                {formatToken(terms.faceValuePerToken, paymentDecimals, 2)} {bond.paymentSymbol}
+                <small>per token</small>
               </div>
             </li>
           </ol>
         </Card>
 
         <Card
-          title="Opened periods"
-          hint="Coupon periods that exist on chain."
-          actions={<Pill>{bond.periods.length} open</Pill>}
+          title="Active periods"
+          actions={<Pill>{bond.periods.length || "None"}</Pill>}
         >
           {bond.periods.length === 0 ? (
             <Empty
-              title="No coupon period opened yet"
+              title="No coupon period yet"
               action={
                 <button type="button" className="btn btn--secondary btn--sm" onClick={onOpenIssuer}>
-                  Open issuer operations
+                  Issuer operations
                 </button>
               }
             >
-              Nothing can be finalized or funded until a period exists and its record date has passed.
+              The issuer hasn't opened one. Once they do, it appears here.
             </Empty>
           ) : (
             <ul className="period-list">
@@ -222,10 +201,10 @@ export function Overview({
                     </Pill>
                   </div>
                   <p className="period-list__detail">
-                    Record date block {formatBlock(period.recordDateBlock)}
+                    Record block {formatBlock(period.recordDateBlock)}
                     {period.finalized
                       ? ` · ${formatToken(period.couponPerToken, paymentDecimals, 4)} ${bond.paymentSymbol} per token`
-                      : " · amount fixed at finalization"}
+                      : " · amount set at finalization"}
                   </p>
                 </li>
               ))}
@@ -233,13 +212,13 @@ export function Overview({
           )}
           <div className="opened-summary">
             <div>
-              <span className="field__label">Funded and claimable</span>
+              <span className="field__label">Funded</span>
               <span className="opened-summary__value">
                 {fundedPeriods} of {bond.periods.length}
               </span>
             </div>
             <div>
-              <span className="field__label">Servicing balance</span>
+              <span className="field__label">Held for payouts</span>
               <span className="opened-summary__value">
                 {formatToken(bond.servicingPaymentBalance, paymentDecimals, 2)} {bond.paymentSymbol}
               </span>
@@ -249,14 +228,13 @@ export function Overview({
       </div>
 
       <Card
-        title="Register of holders"
-        hint="Derived from BondToken Transfer events since deployment; balances are current reads, not a stored holder list."
+        title="Holders"
         flush
-        actions={<Pill>{bond.holders.length} accounts</Pill>}
+        actions={<Pill>{bond.holders.length || "None"}</Pill>}
       >
         {bond.holders.length === 0 ? (
           <div className="card__pad">
-            <Empty title="No token holders" />
+            <Empty title="No holders yet" />
           </div>
         ) : (
           <div className="table-wrap">
@@ -304,13 +282,6 @@ export function Overview({
         )}
       </Card>
 
-      <p className="page-note">
-        Deployment record and verification:{" "}
-        <a href={DOCS.deployment} target="_blank" rel="noreferrer">
-          docs/deployment.md
-        </a>
-        . All values on this page are read from the contracts; nothing is cached or simulated.
-      </p>
     </div>
   );
 }
