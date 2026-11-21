@@ -1,8 +1,8 @@
 # QoreChain testnet deployment
 
 Reproducible deployment of the PAR demo bond to `qorechain-diana`, plus the exact prerequisites for
-broadcasting it. Nothing in this document has been broadcast: the deployment script is implemented,
-unit-tested and simulated against chain 9800, but no funded, window-enabled deployer exists yet.
+broadcasting it. The demo deployment was broadcast on 21 November 2026; the deployed addresses and
+transaction hashes are recorded in §7. Only QoreChain testnet is in scope; mainnet was not touched.
 
 ## 1. Verified network configuration
 
@@ -28,7 +28,9 @@ Window Reference", v3.2.8):
   Without them the node refuses `eth_sendRawTransaction` with `pqc` codes 26, 27 or 28.
 - Opening and closing a window are **native-lane** messages signed with the account's PQC key
   (`qorechaind tx pqc open-evm-window <blocks> <max-txs> <max-value>` or QoreX). They cannot be sent
-  from Foundry.
+  from Foundry. `max-value` must be positive and is charged per transaction: the node counts the
+  transaction's cost against it, not just its native `value` field. A 1 uqor cap rejects even a
+  zero-value contract creation; give the window at least 5 QOR for a full deployment.
 - Reads, `eth_call`, `eth_estimateGas` and `forge script` simulation need neither a key nor a window.
 - Unprotected (pre-EIP-155) transactions are refused; Foundry signs with chain ID 9800.
 - Deployment gas is not free: the simulation estimates **6,094,753 gas**, about **1.22 QOR** at the
@@ -98,7 +100,7 @@ forge script script/Deploy.s.sol \
   --sender <operational-evm-address>
 ```
 
-Broadcast, only after the operational account is registered, has an open window with at least six
+Broadcast, only after the operational account is registered, has an open window with at least eight
 transactions and enough blocks, and is funded:
 
 ```bash
@@ -106,17 +108,23 @@ export PAR_OPERATIONAL_ISSUER=0x<operational-evm-address>
 export PAR_TREASURER=0x<treasurer-address>          # optional
 forge script script/Deploy.s.sol \
   --rpc-url https://evm-testnet.qore.host \
-  --private-key "$PAR_DEPLOYER_PRIVATE_KEY" \
+  --sender "$PAR_OPERATIONAL_ISSUER" \
+  --keystore ~/.foundry/keystores/par-deployer --password "$PAR_KEYSTORE_PASSWORD" \
   --broadcast
 ```
 
-Never put the key in the repository or in shell history: use a keystore
-(`--keystore ~/.foundry/keystores/par-deployer --interactive`) or a hardware wallet. The deployment
-script takes no key argument.
+Never put the key in the repository or in shell history: use a keystore or a hardware wallet. The
+deployment script takes no key argument.
 
-The transaction count is six: demo payment token, `BondToken`, `PqcIssuerAuthorizer`, `BondServicing`,
-`grantRole(MINTER_ROLE)`, `grantRole(TREASURER_ROLE)`, plus `mint` when `PAR_DEMO_SUPPLY != 0`. Open
-the window with at least 8 transactions and a value cap of 0 (no native value is sent).
+The transaction count is seven when the demo mint runs: demo payment token, `BondToken`,
+`PqcIssuerAuthorizer`, `BondServicing`, `grantRole(MINTER_ROLE)`, `grantRole(TREASURER_ROLE)` and
+`mint`. Each consumes one window transaction; the window's value cap must cover the gas cost of all
+of them, so open it with at least 8 transactions and 5 QOR, not a zero or 1 uqor cap.
+
+If a broadcast is interrupted, do not resume it blindly: the window messages share the account
+nonce, so a native window transaction can consume the nonce reserved for the first EVM transaction
+and every later transaction then executes with a gap in the deployment sequence. Check the
+broadcast JSON and the deployed code before retrying; `--start-fresh` is the safe path.
 
 ## 6. Post-deployment verification
 
@@ -140,17 +148,43 @@ Expected: the PQC identity has no role on either contract; `authorizationNonce` 
 matches §3; `totalSupply` is 1,500e18 when the demo mint ran. Do not generate or submit a coupon
 authorization as part of deployment verification.
 
-## 7. Remaining blockers (as of this commit)
+## 7. Deployment record
 
-1. **No operational deployer credentials** are configured in the workspace environment
-   (`freebuff-env list` is empty). No private key, keystore or mnemonic is available to Foundry.
-2. **No funded operational account.** The deployer needs testnet QOR from the Dashboard Faucet
-   (≥3 QOR recommended for the estimated 1.22 QOR fee plus headroom).
-3. **No registered PQC key and no open EVM window** for the operational account. Registration is a
-   native-lane transaction (classical-only bootstrap is allowed for the first one); the window is a
-   hybrid-native message with at least 8 transactions. Neither can be done from Foundry.
-4. The registered PQC identity `0x06cF…afA0` has a valid key but no open window, and it must not be
-   used as the deployer: it holds no role and needs none.
+Broadcast on 21 November 2026 to `qorechain-diana` (chain 9800). All seven transactions are in block
+**10,462,390** with status `1`, gas 100 gwei base fee. Deployer: `0x3270c190500BCA8e26da8279c88d2C54035CAFba`
+(`qor1xfcvryzsp09gufk6sfuu3rfv2sp4eta6vdckwr`).
 
-Once 1–3 are true, the broadcast command in §5 completes the deployment; this document will then be
-updated with the addresses and transaction hashes. Mainnet is out of scope.
+| Contract / call | Address | Transaction |
+|---|---|---|
+| `DemoPaymentToken` | `0xD6EE9c3918507eb7DDB77Bb6E6f74176d9140262` | `0x05168718d785a7ec83821381ace19358d40b5a6fb63c5cf0a45368a6ff6c3fcb` |
+| `BondToken` | `0xC3d195C5A5e2c476888050205D55DfBe3C453840` | `0xbbb04d3685a0e190f7f0394aea7d5f906c1727c5537c6806f6dfc938fe9fb49c` |
+| `PqcIssuerAuthorizer` | `0x8FC2F2B42C4e1bfe203FE3e4F0F126593990784F` | `0x727e4de71ad52af2cc047b2b997c520199729e97c6f9a3fec24c8b5d445134e2` |
+| `BondServicing` | `0x5df199D05FB83D14eaFD2823D46982bEb13512F5` | `0x52ef1f0bcf7e01150ff133f36c00d036abe1a58d5e9695597935ced06b61a425` |
+| `grantRole(PAR_MINTER_ROLE)` on `BondToken` | — | `0x42eec297ebeed0e0a333970b17517e4c696866282b612ed55ad07a35bbda518b` |
+| `grantRole(PAR_TREASURER_ROLE)` on `BondServicing` | — | `0x5f3f60addf97af3d7a95f3967dda39b248c264474fbde8417912acd8ffd0bdca` |
+| `mint(1,500e18)` | — | `0xa843709f5f305605bd3c06ff40fc8b844a212a9152ed07206c5a02620806b428` |
+
+Prerequisite transactions for the deployer account:
+
+| Step | Transaction | Block |
+|---|---|---|
+| `MsgRegisterPQCKeyV2` (ML-DSA-87, PoP proven, fingerprint `ee3f2c93…d0b384`) | `C60ADDD47E43193F8D9AF544708D59FDD46156B8358C27A3DC7A3BAC63ED1E08` | 10,462,215 |
+| `MsgOpenEVMWindow` 100 blocks / 10 txs / 1 uqor | `03A67CC6F708A3E7D6BA00A4E138ADA0562F8F5979B028BF42237A4A623EBFCA` | 10,462,235 |
+| `MsgOpenEVMWindow` 2,000 blocks / 20 txs / 1 uqor (too small a value cap) | `CB7E5419565EEB8092E4E17A80CF056FD34DBD2F3B1E4192D741811AB1F7ED53` | 10,462,303 |
+| `MsgOpenEVMWindow` 2,000 blocks / 20 txs / 5 QOR (used) | `0DC3D96D6F5AF260EC5467ECD16CC40F719519DFCA18A5818F6DCBD55D009C21` | 10,462,340 |
+
+Verified on chain: `DEFAULT_ADMIN_ROLE` on both `BondToken` and `BondServicing`, `PAR_MINTER_ROLE`
+on `BondToken`, `PAR_ISSUER_ROLE` and `PAR_TREASURER_ROLE` on `BondServicing` all held by the
+operational issuer; the registered PQC identity `0x06cF…afA0` holds no role; `authorizer.pqcIssuer()`
+is `0x06cF…afA0`; `terms` = payment token `0xD6EE…0262`, maturity `1_893_456_000`, 500 bps, 2 payments
+per year, face `100e6`; bond cap `1.5e24`, supply and deployer balance `1,500e18`; demo pUSD is
+6-decimal, supply and balance `10,000,000e6`; `authorizationNonce()` is `0`.
+
+**Abandoned first attempt.** An earlier broadcast was interrupted by the 1 uqor window cap. When the
+window was reopened, the native window message took the nonce reserved for the first EVM transaction,
+so the demo token transaction was dropped while the remaining six executed. Those contracts
+(`BondToken 0xA5C84776…C643`, `PqcIssuerAuthorizer 0x3bC9fD91…0312`, `BondServicing 0x27Dfd54D…C2D4`,
+demo token address `0x5E90f54d…b944`, which has no code) are **invalid and must not be used**; the
+table above is the authoritative deployment.
+
+Mainnet is out of scope.

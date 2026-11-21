@@ -125,6 +125,15 @@ The simulation needs no key and no EVM window. Broadcasting requires an operatio
 that is funded, has its own registered ML-DSA-87 key and an open EVM authorization window; see the
 prerequisite table and verification checklist in the deployment doc.
 
+Demo deployment on QoreChain testnet (chain 9800, 21 November 2026, block 10,462,390):
+
+- `BondToken` `0xC3d195C5A5e2c476888050205D55DfBe3C453840`
+- `PqcIssuerAuthorizer` `0x8FC2F2B42C4e1bfe203FE3e4F0F126593990784F`
+- `BondServicing` `0x5df199D05FB83D14eaFD2823D46982bEb13512F5`
+- demo payment token `0xD6EE9c3918507eb7DDB77Bb6E6f74176d9140262`
+
+Addresses, transaction hashes and verified state are recorded in [docs/deployment.md](docs/deployment.md).
+
 Housekeeping:
 
 ```bash
@@ -146,7 +155,8 @@ Implemented protections:
 
 Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the pending first registered-issuer transaction, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
 
-Nothing in this repository is deployed or audited.
+The contracts are deployed to QoreChain testnet only (see [docs/deployment.md](docs/deployment.md));
+they are unaudited and not deployed to mainnet.
 
 ## Licence
 
