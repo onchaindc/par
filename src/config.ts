@@ -10,6 +10,15 @@ export const qoreChain = defineChain({
   testnet: true,
 });
 
+/** EIP-155 chain id as a hex string, used for wallet_switchEthereumChain. */
+export const CHAIN_ID_HEX = `0x${qoreChain.id.toString(16)}`;
+
+/**
+ * Reown (WalletConnect Cloud) project id. Set VITE_REOWN_PROJECT_ID in the
+ * environment to enable the WalletConnect panel; injected wallets work without it.
+ */
+export const REOWN_PROJECT_ID = (import.meta.env.VITE_REOWN_PROJECT_ID ?? "").trim();
+
 export const ADDRESSES = {
   bond: "0xC3d195C5A5e2c476888050205D55DfBe3C453840",
   authorizer: "0x8FC2F2B42C4e1bfe203FE3e4F0F126593990784F",
@@ -29,4 +38,11 @@ export const DOCS = {
     "https://github.com/onchaindc/par/blob/main/docs/issuer-setup.md",
   deployment:
     "https://github.com/onchaindc/par/blob/main/docs/deployment.md",
+  frontend:
+    "https://github.com/onchaindc/par/blob/main/docs/frontend.md",
 } as const;
+
+export const WALLET_INSTALL_LINKS = [
+  { name: "MetaMask", url: "https://metamask.io/download/", detail: "Browser extension or mobile app" },
+  { name: "Rabby", url: "https://rabby.io/", detail: "Browser extension" },
+] as const;

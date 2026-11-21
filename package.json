@@ -10,9 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@reown/appkit": "1.8.24",
+    "@reown/appkit-adapter-wagmi": "1.8.24",
+    "@wagmi/core": "^2.21.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "viem": "^2.37.5"
+    "viem": "^2.55.13",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

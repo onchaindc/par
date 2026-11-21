@@ -30,3 +30,6 @@ secrets/
 
 # Acceptance artefacts
 scripts/acceptance/shots/
+
+# Environment templates are tracked even though local env files are not.
+!.env.example
