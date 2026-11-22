@@ -53,45 +53,51 @@ export type BondData = {
   keyStatus: PqcKeyStatus | null;
   keyFingerprint: string | null;
   holders: Holder[];
+  holdersComplete: boolean;
 };
 
-async function readHolders(): Promise<Holder[]> {
-  let logs: Awaited<ReturnType<typeof publicClient.getContractEvents>> = [];
-  try {
-    logs = await publicClient.getContractEvents({
-      address: ADDRESSES.bond,
-      abi: bondTokenAbi,
-      eventName: "Transfer",
-      fromBlock: DEPLOY_BLOCK,
-      toBlock: "latest",
-    });
-  } catch {
-    const latest = await publicClient.getBlockNumber();
-    let cursor = DEPLOY_BLOCK;
-    const chunk = 50_000n;
-    while (cursor <= latest) {
-      const end = cursor + chunk > latest ? latest : cursor + chunk;
-      try {
-        const part = await publicClient.getContractEvents({
-          address: ADDRESSES.bond,
-          abi: bondTokenAbi,
-          eventName: "Transfer",
-          fromBlock: cursor,
-          toBlock: end,
-        });
-        logs = [...logs, ...part];
-      } catch {
-        // Skip a range the RPC refuses rather than failing the whole page.
-      }
-      cursor = end + 1n;
+type TransferEdge = { from?: string; to?: string };
+
+// Transfer history is append-only, so scan once and resume from the last block read.
+let transferEdges: TransferEdge[] = [];
+let scannedTo: bigint | null = null;
+let scanFailed = false;
+
+async function readHolders(): Promise<{ holders: Holder[]; complete: boolean }> {
+  const latest = await publicClient.getBlockNumber();
+  let cursor = scannedTo === null ? DEPLOY_BLOCK : scannedTo + 1n;
+  const chunk = 9_000n;
+
+  if (cursor <= latest) scanFailed = false;
+  while (cursor <= latest) {
+    const end = cursor + chunk > latest ? latest : cursor + chunk;
+    try {
+      const part = await publicClient.getContractEvents({
+        address: ADDRESSES.bond,
+        abi: bondTokenAbi,
+        eventName: "Transfer",
+        fromBlock: cursor,
+        toBlock: end,
+      });
+      transferEdges = [
+        ...transferEdges,
+        ...part.map((log) => {
+          const args = (log as unknown as { args: TransferEdge }).args;
+          return { from: args.from, to: args.to };
+        }),
+      ];
+      scannedTo = end;
+    } catch {
+      scanFailed = true;
+      break;
     }
+    cursor = end + 1n;
   }
 
   const seen = new Set<string>();
-  for (const log of logs) {
-    const { to, from } = (log as unknown as { args: { to?: string; from?: string } }).args;
-    if (to) seen.add(to.toLowerCase());
-    if (from) seen.add(from.toLowerCase());
+  for (const edge of transferEdges) {
+    if (edge.to) seen.add(edge.to.toLowerCase());
+    if (edge.from) seen.add(edge.from.toLowerCase());
   }
   seen.delete("0x0000000000000000000000000000000000000000");
 
@@ -106,7 +112,10 @@ async function readHolders(): Promise<Holder[]> {
       return { address: account as `0x${string}`, balance };
     }),
   );
-  return holders.filter((holder) => holder.balance > 0n).sort((a, b) => (a.balance > b.balance ? -1 : 1));
+  return {
+    holders: holders.filter((holder) => holder.balance > 0n).sort((a, b) => (a.balance > b.balance ? -1 : 1)),
+    complete: !scanFailed && scannedTo !== null && scannedTo >= latest,
+  };
 }
 
 async function loadBondData(): Promise<BondData> {
@@ -195,7 +204,7 @@ async function loadBondData(): Promise<BondData> {
     }),
   );
 
-  const [keyStatus, holders] = await Promise.all([readPqcKeyStatus(pqcIssuer), readHolders()]);
+  const [keyStatus, holderScan] = await Promise.all([readPqcKeyStatus(pqcIssuer), readHolders()]);
   const keyFingerprint = keyStatus?.publicKeyHex ? await fingerprintHex(keyStatus.publicKeyHex) : null;
 
   return {
@@ -231,7 +240,8 @@ async function loadBondData(): Promise<BondData> {
     pqcIssuer,
     keyStatus,
     keyFingerprint,
-    holders,
+    holders: holderScan.holders,
+    holdersComplete: holderScan.complete,
   };
 }
 

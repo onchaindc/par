@@ -64,15 +64,15 @@ export function Issuer({
       return;
     }
     if (block <= bond.blockNumber) {
-      setRecordError(`The record date must be a future block (current ${bond.blockNumber.toString()}).`);
+      setRecordError(`The snapshot must be a future block (current ${bond.blockNumber.toString()}).`);
       return;
     }
     if (block <= lastRecordBlock) {
-      setRecordError(`The record date must be later than ${lastRecordBlock.toString()}.`);
+      setRecordError(`The snapshot must be later than ${lastRecordBlock.toString()}.`);
       return;
     }
     setRecordError(undefined);
-    run(`Open coupon period · block ${formatBlock(block)}`, () =>
+    run(`Open interest round · block ${formatBlock(block)}`, () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -91,69 +91,63 @@ export function Issuer({
     <div className="stack">
       <div className="section-head">
         <div>
-          <div className="eyebrow">Issuer operations</div>
-          <h2 className="section-title">Schedule, finalize, fund</h2>
+          <div className="eyebrow">Manage</div>
+          <h2 className="section-title">Run the bond</h2>
           <p className="section-sub">
-            Sensitive actions require both the operational <span className="mono">ISSUER_ROLE</span> and a fresh
-            ML-DSA-87 signature from the registered PQC identity. Funding requires{" "}
-            <span className="mono">TREASURER_ROLE</span>.
+            Open a round, approve the amount, then add the money. Every approval needs both the operating wallet
+            and the separate approval key.
           </p>
         </div>
         <div className="btn-row">
-          <Pill tone={isIssuer ? "ok" : "neutral"}>{isIssuer ? "Issuer role" : "No issuer role"}</Pill>
-          <Pill tone={isTreasurer ? "ok" : "neutral"}>{isTreasurer ? "Treasurer role" : "No treasurer role"}</Pill>
+          <Pill tone={isIssuer ? "ok" : "neutral"}>{isIssuer ? "Can manage" : "View only"}</Pill>
+          <Pill tone={isTreasurer ? "ok" : "neutral"}>{isTreasurer ? "Can fund" : "Cannot fund"}</Pill>
         </div>
       </div>
 
       {!wallet.address ? (
-        <Notice tone="warn" icon="!">
-          Connect the operational EVM issuer wallet to act. This page remains readable without a wallet, but no
-          transaction can be submitted. <button type="button" className="btn btn--ghost" onClick={onConnect}>Connect wallet</button>
+        <Notice tone="warn" title="Connect the operating wallet" actions={<button type="button" className="btn btn--secondary btn--sm" onClick={onConnect}>Connect wallet</button>}>
+          You can read everything without a wallet. Connect the wallet that runs the bond to make changes.
         </Notice>
       ) : !isIssuer && !isTreasurer ? (
-        <Notice tone="warn" icon="!">
-          The connected address holds neither <span className="mono">ISSUER_ROLE</span> nor{" "}
-          <span className="mono">TREASURER_ROLE</span> on this servicing contract. Operations are read-only for this
-          wallet; the PQC identity must never be used as a workaround.
+        <Notice tone="warn" title="This wallet is view-only">
+          It doesn't have permission to manage or fund the bond. You can still read every number. Switching to the
+          operating wallet unlocks these actions.
         </Notice>
       ) : null}
 
       <Card
-        title="Authorization requirements"
-        hint="What the chain will require for each sensitive operation."
+        title="What each step needs"
+        hint="Two checks protect every change. Both must pass before money moves."
       >
         <div className="steps">
           <div className="step">
             <span className="step__num">1</span>
             <div>
-              <div className="step__title">Operational role</div>
+              <div className="step__title">The right wallet</div>
               <div className="step__text">
-                The submitting wallet must hold <span className="mono">ISSUER_ROLE</span> (finalization,
-                declaration) or <span className="mono">TREASURER_ROLE</span> (funding). It pays gas and needs its
-                own registered PQC key and an open EVM window to transact.
+                The operating wallet must have permission to manage or fund. It sends the transaction and pays the
+                network fee.
               </div>
             </div>
           </div>
           <div className="step">
             <span className="step__num">2</span>
             <div>
-              <div className="step__title">PQC signature</div>
+              <div className="step__title">The second signature</div>
               <div className="step__text">
-                The registered PQC identity <Address value={bond.pqcIssuer} chars={5} /> signs the exact message
-                returned by the contract. Its key is {bond.keyStatus?.registered ? "registered" : "not registered"} on
-                0x0A02, algorithm {bond.keyStatus?.algorithmId ?? "—"},{" "}
-                {bond.keyStatus?.possessionProven ? "possession proven" : "possession not proven"}.
+                The approval key <Address value={bond.pqcIssuer} chars={5} /> signs the exact amount offline. The
+                key is {bond.keyStatus?.registered ? "registered" : "not registered"} and{" "}
+                {bond.keyStatus?.possessionProven ? "verified" : "not verified"}.
               </div>
             </div>
           </div>
           <div className="step">
             <span className="step__num">3</span>
             <div>
-              <div className="step__title">Nonce and deadline</div>
+              <div className="step__title">A one-time approval</div>
               <div className="step__text">
-                The message binds chain 9800, this servicing contract, the bond, the PQC identity, the action, nonce{" "}
-                <span className="mono">{bond.nonce.toString()}</span> and a deadline. Finalizing consumes the nonce;
-                a stale signature cannot be replayed. The PQC identity never sends the transaction.
+                Each approval works once and expires. An old signature can't be reused, and the approval key never
+                sends a transaction. Approval {bond.nonce.toString()} is next.
               </div>
             </div>
           </div>
@@ -161,13 +155,13 @@ export function Issuer({
       </Card>
 
       <Card
-        title="Open a coupon period"
-        hint="Record dates are block numbers, not timestamps. The date must be in the future, unique, and later than the previous period's record date."
+        title="Open an interest round"
+        hint="Choose a future block for the snapshot. It must be unique and later than the last round."
         actions={<Pill>{formatBlock(bond.blockNumber)} current block</Pill>}
       >
         <div className="form-row">
           <label className="field">
-            <span className="field__label">Record-date block</span>
+            <span className="field__label">Snapshot block</span>
             <input
               className="input"
               value={newRecordBlock}
@@ -176,7 +170,7 @@ export function Issuer({
               spellCheck={false}
             />
             <span className="field__hint">
-              Default is current + 1,000 blocks. Previous record date:{" "}
+              Defaults to 1,000 blocks ahead. Last snapshot:{" "}
               {lastRecordBlock > 0n ? formatBlock(lastRecordBlock) : "none"}.
             </span>
           </label>
@@ -186,22 +180,21 @@ export function Issuer({
             disabled={!wallet.walletClient || !isIssuer || busy || !wallet.isCorrectChain}
             onClick={openPeriod}
           >
-            Open period
+            Open round
           </button>
         </div>
         {recordError ? (
           <p className="small" style={{ color: "var(--danger)", marginTop: 10 }}>{recordError}</p>
         ) : null}
         {!isIssuer && wallet.address ? (
-          <p className="small muted" style={{ marginTop: 10 }}>Requires ISSUER_ROLE.</p>
+          <p className="small muted" style={{ marginTop: 10 }}>Only the operating wallet can open a round.</p>
         ) : null}
       </Card>
 
       {bond.periods.length === 0 ? (
-        <Card title="Coupon periods">
-          <Empty title="No periods yet">
-            Open the first coupon period above. A period can be finalized only after its record-date block has been
-            produced.
+        <Card title="Interest rounds">
+          <Empty title="No rounds yet">
+            Open the first round above. It can be approved once its snapshot block has passed.
           </Empty>
         </Card>
       ) : (
@@ -286,7 +279,7 @@ npm run authorize -- \\
 
   const finalize = (signature: `0x${string}`, deadline: bigint) => {
     if (!wallet.walletClient || !wallet.address) return;
-    void tx.run(`Finalize coupon period ${period.id}`, () =>
+    void tx.run(`Approve interest round ${period.id}`, () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -308,7 +301,7 @@ npm run authorize -- \\
     } catch {
       return;
     }
-    void tx.run(`Update record date · period ${period.id}`, () =>
+    void tx.run(`Update snapshot · round ${period.id}`, () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -323,25 +316,25 @@ npm run authorize -- \\
 
   return (
     <Card
-      title={`Coupon period ${period.id}`}
-      hint={`Record-date block ${formatBlock(period.recordDateBlock)}${reached ? " · reached" : ` · ${formatBlock(period.recordDateBlock - bond.blockNumber)} blocks away`}`}
+      title={`Interest round ${period.id}`}
+      hint={`Snapshot at block ${formatBlock(period.recordDateBlock)}${reached ? " · reached" : ` · ${formatBlock(period.recordDateBlock - bond.blockNumber)} blocks away`}`}
       actions={
         <Pill tone={period.finalized ? "ok" : reached ? "warn" : "neutral"}>
-          {period.finalized ? "Finalized" : reached ? "Ready to finalize" : "Scheduled"}
+          {period.finalized ? "Paid" : reached ? "Ready to approve" : "Scheduled"}
         </Pill>
       }
     >
       {!period.finalized ? (
         <div className="stack" style={{ gap: 14 }}>
           <div className="panel">
-            <div className="panel__title">Expected coupon</div>
+            <div className="panel__title">Expected interest</div>
             <p className="mono">
-              {formatToken(perToken, bond.paymentDecimals, 4)} {bond.paymentSymbol} per token ·{" "}
-              {formatToken(perToken * (bond.totalSupply / 10n ** 18n), bond.paymentDecimals, 2)} {bond.paymentSymbol} at
-              current supply
+              {formatToken(perToken, bond.paymentDecimals, 4)} {bond.paymentSymbol} per bond ·{" "}
+              {formatToken(perToken * (bond.totalSupply / 10n ** 18n), bond.paymentDecimals, 2)} {bond.paymentSymbol} in total at
+              today's supply
             </p>
             <p className="small muted" style={{ marginTop: 6 }}>
-              The amount is fixed at finalization from supply checkpointed at block{" "}
+              The final amount is based on the supply at snapshot block{" "}
               {formatBlock(period.recordDateBlock)}.
             </p>
           </div>
@@ -349,14 +342,14 @@ npm run authorize -- \\
           {!reached ? (
             <div className="form-row">
               <label className="field">
-                <span className="field__label">Change record-date block</span>
+                <span className="field__label">Change snapshot block</span>
                 <input
                   className="input"
                   value={recordDraft}
                   onChange={(event) => setRecordDraft(event.target.value)}
                   spellCheck={false}
                 />
-                <span className="field__hint">Allowed only while the current record date is still in the future.</span>
+                <span className="field__hint">Only possible while the snapshot is still ahead.</span>
               </label>
               <button
                 type="button"
@@ -364,22 +357,22 @@ npm run authorize -- \\
                 disabled={!wallet.walletClient || !isIssuer || busy || !wallet.isCorrectChain}
                 onClick={updateRecordDate}
               >
-                Update date
+                Update snapshot
               </button>
             </div>
           ) : (
             <PqcPanel
-              title="Finalize with ML-DSA-87 authorization"
-              description="Review the exact message, paste the isolated signer's signature, verify it on chain, then submit from the operational issuer."
+              title="Approve this round"
+              description="Review the amount, add the signature from the approval key, check it, then send from the operating wallet."
               loadMessage={loadFinalizeMessage}
               onSubmit={finalize}
-              submitLabel="Finalize coupon"
+              submitLabel="Approve round"
               disabled={!isIssuer || !wallet.isCorrectChain}
               disabledReason={
                 !wallet.address
-                  ? "Connect the operational issuer wallet."
+                  ? "Connect the operating wallet."
                   : !isIssuer
-                    ? "This wallet does not hold ISSUER_ROLE."
+                    ? "This wallet cannot manage the bond."
                     : !wallet.isCorrectChain
                       ? "Switch to QoreChain testnet first."
                       : undefined
@@ -396,15 +389,15 @@ npm run authorize -- \\
         <div className="stack" style={{ gap: 14 }}>
           <div className="grid grid--3">
             <div>
-              <div className="field__label">Coupon per token</div>
+              <div className="field__label">Interest per bond</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(period.couponPerToken, bond.paymentDecimals, 4)} {bond.paymentSymbol}</p>
             </div>
             <div>
-              <div className="field__label">Required funding</div>
+              <div className="field__label">Needed in total</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(period.required, bond.paymentDecimals, 2)} {bond.paymentSymbol}</p>
             </div>
             <div>
-              <div className="field__label">Funded</div>
+              <div className="field__label">Funded so far</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(period.funded, bond.paymentDecimals, 2)} {bond.paymentSymbol}</p>
             </div>
           </div>
@@ -412,8 +405,8 @@ npm run authorize -- \\
             <div className="progress__bar" style={{ width: `${Math.min(100, progress)}%` }} />
           </div>
           <div className="btn-row" style={{ justifyContent: "space-between" }}>
-            <span className="small muted">{progress.toFixed(1)}% funded · {formatToken(remaining > 0n ? remaining : 0n, bond.paymentDecimals, 2)} {bond.paymentSymbol} outstanding</span>
-            {period.funded >= period.required ? <Pill tone="ok">Fully funded · claims open</Pill> : <Pill tone="warn">Funding open</Pill>}
+            <span className="small muted">{progress.toFixed(1)}% funded · {formatToken(remaining > 0n ? remaining : 0n, bond.paymentDecimals, 2)} {bond.paymentSymbol} still to add</span>
+            {period.funded >= period.required ? <Pill tone="ok">Funded · collections open</Pill> : <Pill tone="warn">Waiting for funds</Pill>}
           </div>
           {period.funded < period.required && (
             <FundForm
@@ -434,10 +427,10 @@ npm run authorize -- \\
                       account: wallet.address,
                       chain: qoreChain,
                     })
-                  : Promise.reject(new Error("Connect the treasurer wallet."))
+                  : Promise.reject(new Error("Connect the wallet that adds funds."))
               }
               onFund={(amount) => {
-                if (!wallet.walletClient || !wallet.address) return Promise.reject(new Error("Connect the treasurer wallet."));
+                if (!wallet.walletClient || !wallet.address) return Promise.reject(new Error("Connect the wallet that adds funds."));
                 return wallet.walletClient.writeContract({
                   address: ADDRESSES.servicing,
                   abi: servicingAbi,
@@ -495,9 +488,9 @@ function FundForm({
 
   return (
     <div className="panel">
-      <div className="panel__title">Fund this period</div>
+      <div className="panel__title">Add money to this round</div>
       <p className="small muted" style={{ marginBottom: 10 }}>
-        Partial top-ups are allowed; over-funding is rejected on chain. The treasurer must hold {symbol}.
+        You can add part of the amount now and the rest later. The contract won't accept more than needed.
       </p>
       <div className="form-row">
         <label className="field">
@@ -555,7 +548,7 @@ function FundForm({
       </div>
       {localError ? <p className="small" style={{ color: "var(--danger)", marginTop: 8 }}>{localError}</p> : null}
       {!canFund && wallet.address ? (
-        <p className="small muted" style={{ marginTop: 8 }}>Funding requires TREASURER_ROLE.</p>
+        <p className="small muted" style={{ marginTop: 8 }}>This wallet cannot add funds.</p>
       ) : null}
     </div>
   );
@@ -591,7 +584,7 @@ function RedemptionCard({
       try {
         block = BigInt(recordBlock.trim());
       } catch {
-        throw new Error("Record-date block must be a number.");
+        throw new Error("Snapshot block must be a number.");
       }
       return publicClient.readContract({
         address: ADDRESSES.servicing,
@@ -611,7 +604,7 @@ function RedemptionCard({
     } catch {
       return;
     }
-    void tx.run("Declare principal redemption", () =>
+    void tx.run("Declare principal", () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -628,11 +621,11 @@ function RedemptionCard({
 
   return (
     <Card
-      title="Principal redemption"
-      hint="One declaration after maturity, one funding pool, one claim per holder."
+      title="Principal"
+      hint="After maturity, declare it once, fund it once, then each holder collects once."
       actions={
         <Pill tone={bond.redemption.declared ? "ok" : maturityReached ? "warn" : "neutral"}>
-          {bond.redemption.declared ? "Declared" : maturityReached ? "Maturity reached" : "Before maturity"}
+          {bond.redemption.declared ? "Open" : maturityReached ? "Ready to declare" : "Before maturity"}
         </Pill>
       }
     >
@@ -644,39 +637,39 @@ function RedemptionCard({
               <p className="num" style={{ marginTop: 6 }}>{formatDate(bond.terms.maturity)}</p>
             </div>
             <div>
-              <div className="field__label">Countdown</div>
+              <div className="field__label">Time left</div>
               <p className="num" style={{ marginTop: 6 }}>{relativeTime(bond.terms.maturity)}</p>
             </div>
             <div>
-              <div className="field__label">Principal per token</div>
+              <div className="field__label">Principal per bond</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(bond.terms.faceValuePerToken, bond.paymentDecimals, 2)} {bond.paymentSymbol}</p>
             </div>
           </div>
           {!maturityReached ? (
-            <Notice tone="warn" icon="!">
-              The contract rejects <span className="mono">declareRedemption</span> before maturity. This action is
-              shown for completeness and is disabled until {formatDate(bond.terms.maturity)}.
+            <Notice tone="warn" title="Not open until maturity">
+              Principal can only be declared on or after {formatDate(bond.terms.maturity)}. Until then this section
+              is read-only.
             </Notice>
           ) : null}
           <div className="form-row">
             <label className="field">
-              <span className="field__label">Record-date block</span>
+              <span className="field__label">Snapshot block</span>
               <input className="input" value={recordBlock} onChange={(event) => setRecordBlock(event.target.value)} spellCheck={false} />
-              <span className="field__hint">Must be a past block (defaults to the latest block). Entitlements use balances at this block.</span>
+              <span className="field__hint">Use a past block. Each holder's share is based on their balance then.</span>
             </label>
           </div>
           <PqcPanel
-            title="Declare with ML-DSA-87 authorization"
-            description="The message commits to the record-date block, principal per token, required funding and deadline. Sign it with the registered PQC key."
+            title="Declare principal"
+            description="The message pins the snapshot, the amount per bond and the deadline. Sign it with the approval key, check it, then send."
             loadMessage={loadRedemptionMessage}
             onSubmit={declare}
-            submitLabel="Declare redemption"
+            submitLabel="Declare principal"
             disabled={!isIssuer || !maturityReached || !wallet.isCorrectChain}
             disabledReason={
               !maturityReached
-                ? "Maturity has not been reached."
+                ? "Maturity hasn't been reached yet."
                 : !isIssuer
-                  ? "This wallet does not hold ISSUER_ROLE."
+                  ? "This wallet cannot manage the bond."
                   : !wallet.isCorrectChain
                     ? "Switch to QoreChain testnet first."
                     : undefined
@@ -694,15 +687,15 @@ use an ML-DSA-87 signer over the exact message bytes shown above.`}
         <div className="stack" style={{ gap: 14 }}>
           <div className="grid grid--3">
             <div>
-              <div className="field__label">Record-date block</div>
+              <div className="field__label">Snapshot block</div>
               <p className="num" style={{ marginTop: 6 }}>{formatBlock(bond.redemption.recordDateBlock)}</p>
             </div>
             <div>
-              <div className="field__label">Required funding</div>
+              <div className="field__label">Needed in total</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(bond.redemption.required, bond.paymentDecimals, 2)} {bond.paymentSymbol}</p>
             </div>
             <div>
-              <div className="field__label">Funded</div>
+              <div className="field__label">Funded so far</div>
               <p className="num" style={{ marginTop: 6 }}>{formatToken(bond.redemption.funded, bond.paymentDecimals, 2)} {bond.paymentSymbol}</p>
             </div>
           </div>
@@ -725,10 +718,10 @@ use an ML-DSA-87 signer over the exact message bytes shown above.`}
                       account: wallet.address,
                       chain: qoreChain,
                     })
-                  : Promise.reject(new Error("Connect the treasurer wallet."))
+                  : Promise.reject(new Error("Connect the wallet that adds funds."))
               }
               onFund={(amount) => {
-                if (!wallet.walletClient || !wallet.address) return Promise.reject(new Error("Connect the treasurer wallet."));
+                if (!wallet.walletClient || !wallet.address) return Promise.reject(new Error("Connect the wallet that adds funds."));
                 return wallet.walletClient.writeContract({
                   address: ADDRESSES.servicing,
                   abi: servicingAbi,

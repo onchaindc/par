@@ -29,4 +29,6 @@ export const DOCS = {
     "https://github.com/onchaindc/par/blob/main/docs/issuer-setup.md",
   deployment:
     "https://github.com/onchaindc/par/blob/main/docs/deployment.md",
+  acceptance:
+    "https://github.com/onchaindc/par/blob/main/docs/acceptance.md",
 } as const;

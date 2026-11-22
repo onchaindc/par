@@ -3,6 +3,24 @@
 A single-page Vite + React + TypeScript application that reads the deployed PAR contracts on QoreChain
 testnet (chain 9800) and submits transactions through the user's injected EVM wallet.
 
+## Issue cover
+
+The first load shows an issue cover rather than a dashboard: an oversized issue title, a four-cell terms tape
+(interest, frequency, maturity, face value), a dark three-dimensional live certificate with the on-chain
+supply, holders, interest per bond and the next interest date, and a projected interest calendar. Below it,
+three plain-language mechanics, the two-key model, a live payout ledger and a closing call to action explain
+the product before entry. The certificate tilts with the pointer on desktop, floats gently, and becomes flat
+with a static seal on mobile. The cover uses the same live reads as the app — nothing is static marketing
+data. Entering the desk stores a session flag; the brand mark returns to the cover.
+
+## Shell and navigation
+
+A compact sticky header carries the monogram, wordmark, a glass pill navigation and the wallet chip. At
+≤980 px the pill navigation becomes a fixed bottom bar with icons and short labels, and the shell reserves
+space for it. The footer is a dark, rounded panel with product links, live block/refresh state, contract
+address and a plain testnet disclaimer. Alerts and transaction toasts share rounded, icon-led surfaces with
+plain-language titles; motion respects `prefers-reduced-motion`.
+
 ## Data sources
 
 Everything displayed is a live contract read; there are no fixtures, cached server responses or fabricated
@@ -16,9 +34,10 @@ metrics. Reads use `https://evm-testnet.qore.host` and refresh every 15 seconds,
 | `PqcIssuerAuthorizer` | `pqcIssuer()`, `isAuthorized(issuer, message, signature)` |
 | `0x0A02` precompile | `pqcKeyStatus(issuer)` raw call, decoded as the four-field (registered, algorithm, pubkey, possession) layout |
 
-Holder discovery scans `Transfer` logs from the deployment block (10,462,390) and then reads each current
-balance. The register therefore reflects token movements, not a stored list; the contract has no holder
-enumeration.
+Holder discovery scans `Transfer` logs from the deployment block (10,462,390) in 9,000-block chunks, caches
+successful ranges in memory and resumes from the last scanned block. It then reads each current balance. The
+register therefore reflects token movements, not a stored list; the contract has no holder enumeration. If a
+chunk cannot be read, the UI says the holder list is unavailable instead of claiming there are no holders.
 
 ## Wallet and network
 
@@ -26,7 +45,8 @@ enumeration.
   server-side signer.
 - The app expects chain **9800** (`QoreChain Diana`) and offers `wallet_switchEthereumChain`, adding the chain
   with `https://evm-testnet.qore.host` if the wallet does not know it.
-- Reads work without a wallet. Writes require a connected wallet on chain 9800.
+- Reads work without a wallet for everyone. Writes require a connected wallet on chain 9800 and the relevant
+  on-chain role. Private keys and the PQC signing key are never shipped in the frontend bundle.
 - The app never asks for, stores or transmits a private key, recovery phrase or PQC key file. It only asks the
   wallet to sign normal EVM transactions the user reviews.
 
@@ -73,8 +93,8 @@ approvals rather than unlimited ones.
 - Loading: skeletons while the first read runs.
 - Error: the last successful data set is retained and labelled if a refresh fails; a full read failure shows
   an error with retry.
-- Empty: no opened periods, no holders, unfinalized periods, undeclared redemption and no claimable coupons
-  each have explicit empty states.
+- Empty: no opened rounds, no holders, incomplete holder scans, unapproved periods, undeclared principal and
+  no ready payments each have explicit empty states.
 - Transaction: signing, pending, confirmed and failed states surface in a dismissible toast with the hash and a
   decoded wallet/revert message. Reads refresh after confirmation.
 - Access: role checks are shown per wallet; controls are disabled with the reason (no wallet, wrong chain,
@@ -89,8 +109,10 @@ approvals rather than unlimited ones.
 - A full coupon lifecycle was run through the UI on chain 9800: period opening, a fresh ML-DSA-87 signature
   over the contract message, on-chain signature verification, finalization, exact-amount approval, funding
   and a holder claim, with record-date checkpointing checked by a post-record transfer.
-- Playwright checks cover desktop/tablet/mobile geometry, wallet connection, account changes, disconnect,
-  wrong-network switching, role gating, transaction confirmation and wallet-rejection states.
+- Playwright checks desktop/tablet/mobile geometry for the issue cover and app, the 3D certificate and seal
+  overlap, header height, floating bottom navigation, page overflow, holder register rendering, wallet
+  connection, account changes, disconnect, wrong-network switching, role gating, transaction confirmation and
+  wallet-rejection states (61 checks).
 
 The transaction hashes, reconciliation figures and remaining gaps are recorded in
 [acceptance.md](acceptance.md). Redemption remains untested because maturity is in 2030.
@@ -100,12 +122,17 @@ Custom Solidity errors are included in the ABIs so viem decodes reverts such as 
 
 ## Limitations
 
-- The holder register is reconstructed from logs; an RPC that refuses the deployment-block range degrades to
-  chunked scans and may omit holders if it refuses every chunk.
+- The holder register is reconstructed from cached 9,000-block log scans. A failed chunk leaves the list
+  explicitly marked unavailable rather than silently empty; an RPC that refuses every chunk still cannot
+  enumerate holders.
 - The projected coupon calendar is derived from maturity and frequency. It is not an on-chain schedule; actual
   periods are created by the issuer with block-number record dates.
 - No historical price, yield or off-chain data is shown.
 - No mainnet support. Addresses and chain ID are fixed for the testnet deployment.
+- Write access is role-gated by the contracts; it is not “everyone” access. The demo operating and approval
+  keys are intentionally absent from the repository and the web bundle. A public write demo requires a
+  separately hosted, rate-limited signer service; shipping the key to the browser would give every visitor the
+  issuer role and would be flagged by wallet providers.
 - Wallet writes were exercised with an EIP-1193 signing bridge, not a real browser extension.
 - Redemption is disabled and untested before maturity; producing its signature is not covered by
   `tools/pqc-sign/authorize.mjs`, which currently builds coupon-finalization messages only.

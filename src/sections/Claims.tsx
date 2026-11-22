@@ -30,7 +30,7 @@ export function Claims({
 
   const claimCoupon = (periodId: number) => {
     if (!wallet.walletClient || !wallet.address) return;
-    run(`Claim coupon · period ${periodId}`, () =>
+    run(`Collect interest · round ${periodId}`, () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -44,7 +44,7 @@ export function Claims({
 
   const claimPrincipal = () => {
     if (!wallet.walletClient || !wallet.address) return;
-    run("Claim principal", () =>
+    run("Collect principal", () =>
       wallet.walletClient!.writeContract({
         address: ADDRESSES.servicing,
         abi: servicingAbi,
@@ -73,19 +73,18 @@ export function Claims({
   return (
     <div className="stack">
       <div>
-        <div className="eyebrow">Distributions</div>
-        <h2 className="section-title">Claim coupons and principal</h2>
+        <div className="eyebrow">Payments</div>
+        <h2 className="section-title">Collect your interest</h2>
         <p className="section-sub">
-          Claims are pull-based and exactly once. A coupon is claimable only when its period is finalized and the
-          treasurer has funded the full requirement.
+          Each payment is approved and fully funded first, then collected once. You always see the exact amount before
+          you sign.
         </p>
       </div>
 
       {!wallet.address ? (
         <Card>
-          <Empty title="Connect a wallet to claim">
-            Claims are tied to the holder address at the record-date block, not to the wallet that submitted a
-            previous transaction.
+          <Empty title="Connect to collect">
+            Payments belong to whoever held bonds at each snapshot. Connect the wallet that holds them to see what is ready.
             <div style={{ marginTop: 16 }}>
               <button type="button" className="btn btn--primary" onClick={onConnect} disabled={wallet.connecting}>
                 {wallet.connecting ? <span className="spinner" /> : null}
@@ -98,40 +97,39 @@ export function Claims({
         <>
           <div className="grid grid--3">
             <div className="stat">
-              <div className="stat__label">Available to claim</div>
+              <div className="stat__label">Ready to collect</div>
               <div className="stat__value">
                 {formatToken(claimableTotal, bond.paymentDecimals, 2)}
                 <small>{bond.paymentSymbol}</small>
               </div>
-              <div className="stat__foot">Across fully funded, unclaimed coupon periods</div>
+              <div className="stat__foot">Across funded, uncollected rounds</div>
             </div>
             <div className="stat">
-              <div className="stat__label">Redemption status</div>
+              <div className="stat__label">Principal</div>
               <div className="stat__value" style={{ fontSize: 24 }}>
-                {bond.redemption.declared ? (account?.principalClaimed ? "Claimed" : "Declared") : "Not declared"}
+                {bond.redemption.declared ? (account?.principalClaimed ? "Collected" : "Ready") : "Not open yet"}
               </div>
               <div className="stat__foot">
                 {bond.redemption.declared
-                  ? `Record date block ${formatBlock(bond.redemption.recordDateBlock)}`
-                  : `Principal becomes available after maturity (${formatDate(bond.terms.maturity)})`}
+                  ? `Snapshot at block ${formatBlock(bond.redemption.recordDateBlock)}`
+                  : `Available after maturity on ${formatDate(bond.terms.maturity)}`}
               </div>
             </div>
             <div className="stat">
-              <div className="stat__label">Your bond balance</div>
+              <div className="stat__label">Your bonds</div>
               <div className="stat__value">
                 {account ? formatToken(account.bondBalance, bond.decimals, 2) : "—"}
                 <small>{bond.symbol}</small>
               </div>
-              <div className="stat__foot">Used to derive coupon and principal entitlements</div>
+              <div className="stat__foot">Your balance at each snapshot sets your payment</div>
             </div>
           </div>
 
-          <Card title="Coupon claims" hint="Each period can be claimed once per holder." flush>
+          <Card title="Interest payments" hint="One payment per round, once per holder." flush>
             {available.length === 0 ? (
               <div style={{ padding: "0 24px 24px" }}>
-                <Empty title="Nothing to claim yet">
-                  No coupon period has been finalized. The issuer must open a period, wait for its record date,
-                  finalize it with a PQC signature and then fund it.
+                <Empty title="No payments yet">
+                  When a round is opened, approved and funded, it will show up here ready to collect.
                 </Empty>
               </div>
             ) : (
@@ -139,10 +137,10 @@ export function Claims({
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Period</th>
-                      <th>Record date</th>
-                      <th>Coupon / token</th>
-                      <th>Your entitlement</th>
+                      <th>Round</th>
+                      <th>Snapshot</th>
+                      <th>Interest per bond</th>
+                      <th>Your payment</th>
                       <th>Status</th>
                       <th />
                     </tr>
@@ -155,10 +153,10 @@ export function Claims({
                           <span className="num">{formatBlock(period.recordDateBlock)}</span>
                           <div className="small muted">
                             {period.finalized
-                              ? "frozen"
+                              ? "locked"
                               : bond.blockNumber > period.recordDateBlock
-                                ? "reached · awaiting finalization"
-                                : "not reached"}
+                                ? "reached · waiting for approval"
+                                : "not reached yet"}
                           </div>
                         </td>
                         <td className="num">
@@ -171,15 +169,15 @@ export function Claims({
                         </td>
                         <td>
                           {!period.finalized ? (
-                            <Pill tone="warn">Unfinalized</Pill>
+                            <Pill tone="warn">Not approved</Pill>
                           ) : claimed ? (
-                            <Pill tone="ok">Claimed</Pill>
+                            <Pill tone="ok">Collected</Pill>
                           ) : !funded ? (
-                            <Pill tone="warn">Awaiting funding</Pill>
+                            <Pill tone="warn">Waiting for funding</Pill>
                           ) : entitlement > 0n ? (
                             <Pill tone="gold">Ready</Pill>
                           ) : (
-                            <Pill>No entitlement</Pill>
+                            <Pill>No payment</Pill>
                           )}
                         </td>
                         <td style={{ textAlign: "right" }}>
@@ -197,7 +195,7 @@ export function Claims({
                             }
                             onClick={() => claimCoupon(period.id)}
                           >
-                            Claim
+                            Collect
                           </button>
                         </td>
                       </tr>
@@ -208,32 +206,32 @@ export function Claims({
             )}
           </Card>
 
-          <Card title="Principal redemption" hint="Declared once after maturity, then funded by the treasurer and claimed once per holder.">
+          <Card title="Principal" hint="Your original stake, returned once after maturity and collected once per holder.">
             {!bond.redemption.declared ? (
-              <Notice tone="warn" icon="!">
-                Redemption has not been declared. It becomes possible only after maturity on{" "}
-                {formatDate(bond.terms.maturity)}. Until then this panel is informational only.
+              <Notice tone="warn" title="Not open yet">
+                Principal becomes available after maturity on {formatDate(bond.terms.maturity)}. Nothing is required
+                from you before then.
               </Notice>
             ) : (
               <div className="stack" style={{ gap: 16 }}>
                 <dl className="kv">
-                  <dt>Record-date block</dt>
+                  <dt>Snapshot block</dt>
                   <dd>{formatBlock(bond.redemption.recordDateBlock)}</dd>
-                  <dt>Principal per token</dt>
+                  <dt>Principal per bond</dt>
                   <dd>{formatToken(bond.redemption.principalPerToken, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-                  <dt>Required funding</dt>
+                  <dt>Needed in total</dt>
                   <dd>{formatToken(bond.redemption.required, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-                  <dt>Funded</dt>
+                  <dt>Funded so far</dt>
                   <dd>{formatToken(bond.redemption.funded, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-                  <dt>Your entitlement</dt>
+                  <dt>Your principal</dt>
                   <dd>
                     {account ? `${formatToken(account.principalEntitlement, bond.paymentDecimals, 2)} ${bond.paymentSymbol}` : "—"}
                   </dd>
                   <dt>Your status</dt>
-                  <dd>{account?.principalClaimed ? "Claimed" : "Unclaimed"}</dd>
+                  <dd>{account?.principalClaimed ? "Collected" : "Not collected"}</dd>
                 </dl>
                 {bond.redemption.funded < bond.redemption.required && (
-                  <Notice tone="warn" icon="!">The redemption is not fully funded yet, so claims are disabled on chain.</Notice>
+                  <Notice tone="warn" title="Funding isn't complete">The full principal has not been added yet, so collection is paused.</Notice>
                 )}
                 <div>
                   <button
@@ -251,7 +249,7 @@ export function Claims({
                     }
                     onClick={claimPrincipal}
                   >
-                    Claim principal
+                    Collect principal
                   </button>
                 </div>
               </div>

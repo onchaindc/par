@@ -134,26 +134,61 @@ export function Skeleton({ width = "100%", height, stat }: { width?: string; hei
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="empty">
+      <span className="empty__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+          <path d="M5 8.5 12 5l7 3.5-7 3.5-7-3.5Z" />
+          <path d="m5 12.5 7 3.5 7-3.5" />
+          <path d="m5 16.5 7 3.5 7-3.5" opacity=".45" />
+        </svg>
+      </span>
       <strong>{title}</strong>
-      {children}
+      {children ? <div className="empty__body">{children}</div> : null}
     </div>
   );
 }
 
 export function Notice({
   tone = "neutral",
-  icon = "i",
+  title,
   children,
+  actions,
+  onClose,
 }: {
   tone?: "neutral" | "warn" | "danger";
   icon?: string;
+  title?: string;
   children: ReactNode;
+  actions?: ReactNode;
+  onClose?: () => void;
 }) {
   const cls = tone === "neutral" ? "notice" : `notice notice--${tone}`;
   return (
     <div className={cls} role={tone === "danger" ? "alert" : undefined}>
-      <span className="notice__icon" aria-hidden="true">{icon}</span>
-      <div>{children}</div>
+      <span className="notice__icon" aria-hidden="true">
+        {tone === "neutral" ? (
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="10" cy="10" r="7.2" />
+            <path d="M10 9v4.5M10 6.4v.2" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 3.2 17.2 16H2.8L10 3.2Z" />
+            <path d="M10 8v3.4M10 13.9v.1" />
+          </svg>
+        )}
+      </span>
+      <div className="notice__body">
+        {title ? <strong className="notice__title">{title}</strong> : null}
+        <div className="notice__text">{children}</div>
+        {actions ? <div className="notice__actions">{actions}</div> : null}
+      </div>
+      {onClose ? (
+        <button type="button" className="notice__close" onClick={onClose} aria-label="Dismiss">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+            <path d="m4 4 8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -165,23 +200,35 @@ export function TxToast({ tx, onClose }: { tx: TxState; onClose: () => void }) {
     tx.status === "signing"
       ? "Confirm in your wallet"
       : tx.status === "pending"
-        ? "Transaction submitted"
+        ? "Sending…"
         : tx.status === "confirmed"
-          ? "Transaction confirmed"
-          : "Transaction failed";
+          ? "All done"
+          : "That didn't work";
   return (
     <div className={bad ? "toast toast--bad" : "toast"} role="status" aria-live="polite">
-      {(tx.status === "signing" || tx.status === "pending") && <span className="spinner" aria-hidden="true" />}
+      <span className="toast__icon" aria-hidden="true">
+        {tx.status === "signing" || tx.status === "pending" ? (
+          <span className="spinner" />
+        ) : tx.status === "confirmed" ? (
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m4.5 10.5 3.4 3.4L15.5 6" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+            <path d="m6 6 8 8M14 6l-8 8" />
+          </svg>
+        )}
+      </span>
       <div className="toast__body">
-        <div className="toast__title">
-          {title}
-          {tx.label ? ` · ${tx.label}` : ""}
-        </div>
-        {tx.error ? <div>{tx.error}</div> : null}
+        <div className="toast__title">{title}</div>
+        {tx.label ? <div className="toast__label">{tx.label}</div> : null}
+        {tx.error ? <div className="toast__error">{tx.error}</div> : null}
         {tx.hash ? <div className="toast__hash">{tx.hash}</div> : null}
       </div>
       <button type="button" className="toast__close" onClick={onClose} aria-label="Dismiss">
-        ✕
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+          <path d="m4 4 8 8M12 4l-8 8" />
+        </svg>
       </button>
     </div>
   );

@@ -6,7 +6,7 @@ Par is an open-source bond servicing application for tokenized assets. It handle
 
 ## Status
 
-The contracts are deployed and verified on QoreChain testnet (chain 9800), a dedicated operational deployer is registered with its own ML-DSA-87 key and an EVM authorization window, and the bond-servicing frontend is implemented. Coupon periods have not been opened yet, so no PQC-authorised finalization has been exercised on chain.
+The contracts are deployed and verified on QoreChain testnet (chain 9800), with a registered operational issuer and its own ML-DSA-87 key. A full coupon lifecycle has been exercised on chain: period 0 was finalized with a PQC signature, funded, and claimed to completion, and record-date ownership was verified with a post-snapshot transfer that received nothing.
 
 | Component | Status |
 |-----------|--------|
@@ -22,7 +22,8 @@ The contracts are deployed and verified on QoreChain testnet (chain 9800), a ded
 | Payment reconciliation | implemented in the application and on chain |
 | QoreChain testnet deployment | deployed and verified at block 10,462,390 on chain 9800 |
 | Registered-issuer transaction | key registered with proof of possession; PQC-authorised coupon finalization executed on testnet |
-| Bond servicing frontend | implemented: overview, portfolio, issuer operations, claims, reconciliation and PQC verification |
+| End-to-end coupon lifecycle | finalized, funded and fully claimed on testnet; reconciliation zero after claims |
+| Bond servicing frontend | modern responsive shell: issue cover, plain-language issue view, holdings, management, payments and records |
 
 ## Architecture
 
@@ -129,18 +130,26 @@ bun run build      # typecheck + production bundle in dist/
 bun run typecheck
 ```
 
+The app opens on an **issue cover** — a live, three-dimensional bond certificate with the key terms, interest
+calendar, payout mechanics and the two-key model. Entering the app reveals a sticky desktop pill navigation and a
+fixed mobile bottom bar. The cover is session-scoped: the brand mark returns to it.
+
+**Read access is open to everyone.** No wallet, account, API key or private key is needed to read the bond. A
+wallet is only required to manage or collect, and the contracts decide who may do that. Private keys and the PQC
+signing key are never part of the web bundle; sharing them publicly would hand the issuer role to every visitor.
+For a public write demo, use a hosted, rate-limited signer service rather than embedding a key in the page.
+
 Sections:
 
-- **Overview** — immutable terms, supply cap utilisation, coupon math, projected calendar, on-chain holder
-  register, addresses and live PQC key status.
-- **Portfolio** — connected holder's balance, face value, coupon entitlements per period, claimability and
-  principal status.
-- **Issuer operations** — opening and re-dating coupon periods, finalizing with an externally produced
-  ML-DSA-87 signature, funding coupons and redemptions, declaring redemption, and the full authorization
-  requirements.
-- **Claims** — coupon claims per period and the one-time principal claim, enabled only when fully funded.
-- **Reconciliation** — required, funded, claimed, outstanding, unfunded liabilities and contract balance
-  coverage, plus control state (nonce, PQC key, roles).
+- **Issue** — the bond in plain language: terms, live supply, interest schedule, on-chain holders and the
+  two-key approval model. Technical addresses sit behind a collapsed details panel.
+- **Bonds** — the connected holder's balance, interest per payment, what is ready to collect and principal
+  status, plus a collapsed wallet-balance detail.
+- **Manage** — opening an interest round, moving its snapshot, approving with an externally produced signature,
+  adding funds and declaring principal. Role-gated and clearly labelled view-only when the wallet lacks access.
+- **Payments** — interest collections per round and the one-time principal collection, enabled only when fully
+  funded.
+- **Records** — promised, funded, collected and outstanding amounts, contract coverage, and integrity checks.
 
 Sensitive actions never sign in the browser: the panel shows the exact message read from the contract, the
 registered PQC identity, the authorization nonce and a deadline, verifies a pasted 4,627-byte ML-DSA-87

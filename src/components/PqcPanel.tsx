@@ -103,7 +103,7 @@ export function PqcPanel({
         functionName: "isAuthorized",
         args: [pqcIssuer, message, parsedSignature],
       });
-      setVerify(valid ? { status: "valid" } : { status: "invalid", reason: "The authorizer rejected this signature for the current message." });
+      setVerify(valid ? { status: "valid" } : { status: "invalid", reason: "This signature doesn't match the current amount." });
     } catch (cause) {
       setVerify({ status: "invalid", reason: errorMessage(cause) });
     }
@@ -116,7 +116,7 @@ export function PqcPanel({
 
       <div className="form-row" style={{ marginBottom: 12 }}>
         <label className="field">
-          <span className="field__label">Signature deadline (local time)</span>
+          <span className="field__label">Approval valid until</span>
           <input
             className="input"
             type="datetime-local"
@@ -126,13 +126,13 @@ export function PqcPanel({
           <span className="field__hint">{deadline > 0n ? `${formatDate(deadline, true)} UTC · ${deadline.toString()}` : "—"}</span>
         </label>
         <div className="field" style={{ flex: "0 0 auto" }}>
-          <span className="field__label">Authorization nonce</span>
+          <span className="field__label">Approval number</span>
           <span className="mono" style={{ padding: "9px 0" }}>{nonce.toString()}</span>
         </div>
       </div>
 
       <div className="field" style={{ marginBottom: 12 }}>
-        <span className="field__label">Message to sign (read from the contract)</span>
+        <span className="field__label">What this approves</span>
         {loadingMessage ? (
           <span className="mono muted">Reading {messageLabel}…</span>
         ) : message ? (
@@ -149,10 +149,10 @@ export function PqcPanel({
       </div>
 
       <div className="field" style={{ marginBottom: 12 }}>
-        <span className="field__label">ML-DSA-87 signature (hex, 4,627 bytes)</span>
+        <span className="field__label">Signature from the approval key</span>
         <textarea
           className="textarea"
-          placeholder="0x… produced offline by the registered PQC signer"
+          placeholder="Paste the 0x… signature produced offline"
           value={signature}
           onChange={(event) => {
             setSignature(event.target.value);
@@ -161,14 +161,17 @@ export function PqcPanel({
           spellCheck={false}
         />
         <span className="field__hint">
-          {signatureBytes > 0 ? `${signatureBytes.toLocaleString()} bytes · expected 4,627` : "The signature never leaves this page except in the transaction you submit."}
+          {signatureBytes > 0 ? `${signatureBytes.toLocaleString()} bytes · expected 4,627` : "The approval key stays offline. Only the signature is used here."}
         </span>
       </div>
 
-      <Notice>
-        <strong>Sign offline.</strong> The registered PQC identity must produce this signature from its key file. Run the
-        repository tooling on the signer host, then paste only the signature here:
-        <pre className="code" style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{signingCommand}</pre>
+      <Notice title="Keep the approval key offline" tone="neutral">
+        The signature is produced on the signer machine, never in this browser. Run the repository tooling there,
+        then paste only the signature here.
+        <details className="details" style={{ marginTop: 4 }}>
+          <summary>Signing command</summary>
+          <pre className="code" style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{signingCommand}</pre>
+        </details>
       </Notice>
 
       <div className="btn-row" style={{ marginTop: 12 }}>
@@ -179,7 +182,7 @@ export function PqcPanel({
           onClick={verifySignature}
         >
           {verify.status === "checking" ? <span className="spinner" /> : null}
-          Verify signature on chain
+          Check signature
         </button>
         <button
           type="button"
@@ -196,7 +199,7 @@ export function PqcPanel({
 
       {verify.status === "valid" && (
         <div className="sig-status sig-status--ok" style={{ marginTop: 10 }}>
-          <span className="dot" /> Signature accepted by 0x0A01 for this message and nonce.
+          <span className="dot" /> Signature verified for this amount.
         </div>
       )}
       {verify.status === "invalid" && (

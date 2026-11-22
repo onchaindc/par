@@ -12,6 +12,7 @@ import {
   operationalWallet,
   publicClient,
   waitForToast,
+  enterApp,
 } from "./lib.mjs";
 import { createWalletClient, http } from "viem";
 
@@ -67,8 +68,9 @@ const context = await mockWalletContext(browser);
 const page = await context.newPage();
 page.on("pageerror", (error) => console.error("pageerror", error.message));
 await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
+await enterApp(page);
 await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
-await page.getByRole("tab", { name: /Issuer operations/ }).click();
+await page.getByRole("tab", { name: /Manage the bond/ }).click();
 
 const panel = page.locator(".panel--green").first();
 await panel.waitFor({ timeout: 30_000 });
@@ -98,7 +100,7 @@ await panel.getByRole("button", { name: "Verify signature on chain" }).click();
 await panel.getByText("Signature accepted by 0x0A01").waitFor({ timeout: 30_000 });
 console.log("valid signature accepted on chain");
 
-await panel.getByRole("button", { name: "Finalize coupon" }).click();
+await panel.getByRole("button", { name: "Approve round" }).click();
 await waitForToast(page, "Transaction confirmed", 150_000);
 console.log("toast:", (await page.locator(".toast").innerText()).replace(/\n/g, " | "));
 
@@ -118,9 +120,9 @@ await waitForToast(page, "Transaction confirmed", 150_000);
 console.log("funding confirmed");
 
 // Claim the coupon.
-await page.getByRole("tab", { name: /Claims/ }).click();
+await page.getByRole("tab", { name: /Payments/ }).click();
 await page.waitForTimeout(1500);
-await page.getByRole("button", { name: "Claim", exact: true }).first().click({ timeout: 30_000 });
+await page.getByRole("button", { name: "Collect", exact: true }).first().click({ timeout: 30_000 });
 await waitForToast(page, "Transaction confirmed", 150_000);
 console.log("claim confirmed");
 

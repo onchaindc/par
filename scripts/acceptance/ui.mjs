@@ -1,4 +1,4 @@
-import { launch, mockWalletContext, operationalWallet, PREVIEW_URL, publicClient, assert } from "./lib.mjs";
+import { launch, mockWalletContext, operationalWallet, PREVIEW_URL, publicClient, assert, enterApp } from "./lib.mjs";
 
 const browser = await launch();
 const wallet = operationalWallet();
@@ -18,6 +18,48 @@ async function layout(viewport, label) {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
   await page.waitForTimeout(3000);
+  const cover = await page.evaluate(() => {
+    const title = document.querySelector(".cover__title");
+    const cert = document.querySelector(".certificate");
+    const outside = [...document.querySelectorAll(".certificate, .tape, .cover__cta, .cover__ledger, .mechanics")].filter((element) => {
+      const box = element.getBoundingClientRect();
+      return box.right > window.innerWidth + 1 || box.left < -1;
+    }).length;
+    const seal = document.querySelector(".certificate__seal");
+    let sealOverlaps = 0;
+    if (seal) {
+      const a = seal.getBoundingClientRect();
+      for (const element of document.querySelectorAll(".certificate__row strong, .certificate__head")) {
+        const b = element.getBoundingClientRect();
+        const overlap =
+          Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+          Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        if (overlap > 4) sealOverlaps += 1;
+      }
+    }
+    return {
+      hasTitle: Boolean(title),
+      sealOverlaps,
+      titleFont: title ? getComputedStyle(title).fontFamily : null,
+      titleSize: title ? getComputedStyle(title).fontSize : null,
+      hasCertificate: Boolean(cert),
+      tapeItems: document.querySelectorAll(".tape__item").length,
+      hasCta: Boolean(document.querySelector(".cover__actions .btn--primary")),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      outside,
+      text: document.body.innerText,
+    };
+  });
+  record(`${label} cover: rendered`, cover.hasTitle && cover.hasCertificate && /Par Bond/.test(cover.text), "");
+  record(`${label} cover: terms tape`, cover.tapeItems === 4, `${cover.tapeItems} items`);
+  record(`${label} cover: entry CTA`, cover.hasCta, "");
+  record(`${label} cover: display font`, /Fraunces/.test(cover.titleFont ?? ""), cover.titleFont ?? "none");
+  record(`${label} cover: no horizontal overflow`, cover.overflow <= 1, `delta ${cover.overflow}px`);
+  record(`${label} cover: blocks inside viewport`, cover.outside === 0, `${cover.outside} outside`);
+  record(`${label} cover: seal does not cover text`, cover.sealOverlaps === 0, `${cover.sealOverlaps} overlaps`);
+  console.log(`${label} cover metrics`, JSON.stringify({ ...cover, text: undefined }));
+  await enterApp(page);
+  await page.waitForTimeout(900);
   const metrics = await page.evaluate(() => {
     const clipped = [];
     for (const element of document.querySelectorAll(".btn, .tab, .pill, .stat__value")) {
@@ -31,6 +73,10 @@ async function layout(viewport, label) {
     }).length;
     const heading = document.querySelector("h1");
     const tabs = document.querySelector(".tabs__inner");
+    const nav = document.querySelector(".tabs");
+    const navBox = nav ? nav.getBoundingClientRect() : null;
+    const header = document.querySelector(".topbar");
+    const headerBox = header ? header.getBoundingClientRect() : null;
     return {
       pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       cardsOutside,
@@ -42,6 +88,10 @@ async function layout(viewport, label) {
       tabsOverflow: tabs ? tabs.scrollWidth - tabs.clientWidth : 0,
       cards: document.querySelectorAll(".card").length,
       tables: document.querySelectorAll(".table-wrap").length,
+      navPosition: nav ? getComputedStyle(nav).position : null,
+      navGap: navBox ? Math.round(window.innerHeight - navBox.bottom) : null,
+      headerHeight: headerBox ? Math.round(headerBox.height) : null,
+      holderRows: document.querySelectorAll(".table tbody tr").length,
       text: document.body.innerText,
     };
   });
@@ -51,7 +101,15 @@ async function layout(viewport, label) {
   record(`${label}: display font`, /Fraunces/.test(metrics.h1Font ?? ""), metrics.h1Font ?? "none");
   record(`${label}: body font`, /Inter/.test(metrics.bodyFont), metrics.bodyFont);
   record(`${label}: content rendered`, /Par Bond 2030/.test(metrics.text), JSON.stringify(metrics.text.slice(0, 60)));
-  record(`${label}: navigation present`, /Issuer operations/.test(metrics.text) && /Reconciliation/.test(metrics.text), "");
+  record(`${label}: navigation present`, /Manage/.test(metrics.text) && /Records/.test(metrics.text), "");
+  record(
+    `${label}: navigation placement`,
+    viewport.width <= 980
+      ? metrics.navPosition === "fixed" && metrics.navGap !== null && metrics.navGap >= 0 && metrics.navGap <= 28
+      : metrics.navPosition === "static" && metrics.headerHeight <= 74,
+    `${metrics.navPosition} · gap ${metrics.navGap}px · header ${metrics.headerHeight}px`,
+  );
+  record(`${label}: holder register readable`, /Who holds the bonds/.test(metrics.text) && metrics.holderRows > 0, `${metrics.holderRows} rows`);
   record(`${label}: rendered without page errors`, errors.length === 0, errors.join(" | "));
   console.log(`${label} metrics`, JSON.stringify({ ...metrics, text: undefined }));
   await context.close();
@@ -60,6 +118,7 @@ async function layout(viewport, label) {
 await layout({ width: 1440, height: 960 }, "desktop 1440");
 await layout({ width: 768, height: 1024 }, "tablet 768");
 await layout({ width: 390, height: 844 }, "mobile 390");
+await layout({ width: 360, height: 780 }, "mobile 360");
 
 // Connected wallet on the correct chain, then account change and disconnect.
 {
@@ -68,17 +127,18 @@ await layout({ width: 390, height: 844 }, "mobile 390");
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
+  await enterApp(page);
   await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
   await page.waitForTimeout(1200);
   record("wallet connects", await page.getByRole("button", { name: "Disconnect" }).isVisible(), wallet.address);
-  await page.getByRole("tab", { name: /Portfolio/ }).click();
+  await page.getByRole("tab", { name: /My bonds/ }).click();
   await page.waitForTimeout(800);
   const portfolioText = await page.locator(".tabs-panel").innerText();
   record("portfolio shows holding", /1,000/.test(portfolioText), portfolioText.slice(0, 80).replace(/\n/g, " / "));
 
-  await page.getByRole("tab", { name: /Issuer operations/ }).click();
-  const issuerRole = page.getByText("Issuer role", { exact: true });
-  const treasurerRole = page.getByText("Treasurer role", { exact: true });
+  await page.getByRole("tab", { name: /Manage the bond/ }).click();
+  const issuerRole = page.getByText("Can manage", { exact: true });
+  const treasurerRole = page.getByText("Can fund", { exact: true });
   await issuerRole.waitFor({ timeout: 15_000 }).catch(() => {});
   record(
     "issuer roles detected",
@@ -87,11 +147,11 @@ await layout({ width: 390, height: 844 }, "mobile 390");
   );
 
   await page.evaluate(() => window.__mockSetAccount("0x1111111111111111111111111111111111111111"));
-  await page.getByText("No issuer role", { exact: true }).waitFor({ timeout: 15_000 }).catch(() => {});
+  await page.getByText("View only", { exact: true }).waitFor({ timeout: 15_000 }).catch(() => {});
   const rolelessText = await page.locator(".tabs-panel").innerText();
   record(
     "account change updates roles",
-    /no issuer role/i.test(rolelessText) && /holds neither/i.test(rolelessText),
+    /view only/i.test(rolelessText) && /view-only/i.test(rolelessText),
     rolelessText.slice(0, 90).replace(/\n/g, " / "),
   );
 
@@ -112,17 +172,18 @@ await layout({ width: 390, height: 844 }, "mobile 390");
   const context = await mockWalletContext(browser, { chainId: "0x1" });
   const page = await context.newPage();
   await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
+  await enterApp(page);
   await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
   await page.waitForTimeout(1200);
   record(
     "wrong network banner",
-    /Your wallet is on chain 1/.test(await page.locator("body").innerText()),
+    /wrong network/i.test(await page.locator("body").innerText()),
     "",
   );
-  await page.getByRole("button", { name: "Switch to 9800" }).click();
+  await page.getByRole("button", { name: "Switch network" }).click();
   await page.waitForTimeout(1500);
   const text = await page.locator("body").innerText();
-  record("network switch", /QoreChain Diana/.test(text) && !/Your wallet is on chain 1/.test(text), "");
+  record("network switch", /QoreChain Diana/.test(text) && !/wrong network/i.test(text), "");
   await context.close();
 }
 
@@ -131,8 +192,11 @@ await layout({ width: 390, height: 844 }, "mobile 390");
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
-  const text = await page.locator("body").innerText();
-  record("no-wallet notice", /No browser wallet detected/.test(text), "");
+  await enterApp(page);
+  await page.getByRole("tab", { name: /My bonds/ }).click();
+  await page.waitForTimeout(300);
+  const text = await page.locator(".tabs-panel").innerText();
+  record("no-wallet reading", /Connect to see your bonds/i.test(text), text.slice(0, 70));
   await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
   await page.waitForTimeout(400);
   record("no-wallet connect error", /No browser wallet found/.test(await page.locator("body").innerText()), "");
