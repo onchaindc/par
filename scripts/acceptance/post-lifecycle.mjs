@@ -1,6 +1,6 @@
 import { ADDRESSES } from "../../src/config.ts";
 import { servicingAbi } from "../../src/abis.ts";
-import { assert, launch, mockWalletContext, operationalWallet, publicClient, PREVIEW_URL, enterApp } from "./lib.mjs";
+import { assert, launch, mockWalletContext, operationalWallet, publicClient, PREVIEW_URL } from "./lib.mjs";
 
 const wallet = operationalWallet();
 const results = [];
@@ -120,21 +120,20 @@ const page = await context.newPage();
 const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
 await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
-await enterApp(page);
 await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
-await page.getByRole("tab", { name: /Payments/ }).click();
+await page.getByRole("tab", { name: /Claims/ }).click();
 await page.waitForTimeout(6000);
 const claimsText = await page.locator(".tabs-panel").innerText();
 console.log("CLAIMS_TEXT", JSON.stringify(claimsText.slice(0, 700)));
-check("claims tab shows claimed status", /COLLECTED|Collected/i.test(claimsText), "");
+check("claims tab shows claimed status", /CLAIMED|Claimed/i.test(claimsText), "");
 
-await page.getByRole("tab", { name: /Records/ }).click();
+await page.getByRole("tab", { name: /Reconciliation/ }).click();
 await page.waitForTimeout(1500);
 const ledgerText = (await page.locator(".tabs-panel").innerText()).replace(/\u00a0/g, " ");
 console.log("LEDGER_TEXT", JSON.stringify(ledgerText.slice(0, 900)));
 check("reconciliation shows funded/claimed totals", /3,750/.test(ledgerText), "");
 
-await page.getByRole("tab", { name: /Manage the bond/ }).click();
+await page.getByRole("tab", { name: /Issuer operations/ }).click();
 await page.getByLabel("Record-date block").first().fill("10480000");
 await page.getByRole("button", { name: "Open period" }).click();
 await page.waitForTimeout(1500);

@@ -1,4 +1,4 @@
-import { launch, mockWalletContext, PREVIEW_URL, publicClient, waitForToast, enterApp } from "./lib.mjs";
+import { launch, mockWalletContext, PREVIEW_URL, publicClient, waitForToast } from "./lib.mjs";
 import { servicingAbi } from "../../src/abis.ts";
 
 const browser = await launch();
@@ -6,9 +6,8 @@ const context = await mockWalletContext(browser);
 const page = await context.newPage();
 page.on("pageerror", (error) => console.error("pageerror", error.message));
 await page.goto(PREVIEW_URL, { waitUntil: "networkidle", timeout: 90_000 });
-await enterApp(page);
 await page.getByRole("banner").getByRole("button", { name: "Connect wallet" }).click();
-await page.getByRole("tab", { name: /Manage the bond/ }).click();
+await page.getByRole("tab", { name: /Issuer operations/ }).click();
 await page.getByRole("button", { name: "Open period" }).waitFor({ timeout: 20_000 });
 
 const head = await publicClient.getBlockNumber();

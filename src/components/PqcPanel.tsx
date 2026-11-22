@@ -3,7 +3,8 @@ import { ADDRESSES } from "../config";
 import { authorizerAbi } from "../abis";
 import { normaliseSignature, publicClient } from "../lib/chain";
 import { errorMessage, formatDate } from "../lib/format";
-import { CopyButton, Notice } from "./ui";
+import { CopyButton, Notice, Pill } from "./ui";
+import { IconCheck } from "./icons";
 
 type VerifyState =
   | { status: "idle" }
@@ -15,7 +16,7 @@ function localDefault(): string {
   const date = new Date(Date.now() + 60 * 60 * 1000);
   date.setSeconds(0, 0);
   const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${ pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function PqcPanel({
@@ -103,56 +104,76 @@ export function PqcPanel({
         functionName: "isAuthorized",
         args: [pqcIssuer, message, parsedSignature],
       });
-      setVerify(valid ? { status: "valid" } : { status: "invalid", reason: "This signature doesn't match the current amount." });
+      setVerify(
+        valid
+          ? { status: "valid" }
+          : { status: "invalid", reason: "The authorizer rejected this signature for the current message." },
+      );
     } catch (cause) {
       setVerify({ status: "invalid", reason: errorMessage(cause) });
     }
   };
 
   return (
-    <div className="panel panel--green" style={{ marginTop: 16 }}>
-      <div className="panel__title">{title}</div>
-      <p style={{ marginBottom: 12 }}>{description}</p>
+    <div className="pqc">
+      <div className="pqc__head">
+        <div>
+          <h3 className="pqc__title">{title}</h3>
+          <p className="pqc__desc">{description}</p>
+        </div>
+        <Pill tone={verify.status === "valid" ? "ok" : "gold"}>
+          {verify.status === "valid" ? "Verified" : "Needs signature"}
+        </Pill>
+      </div>
 
-      <div className="form-row" style={{ marginBottom: 12 }}>
+      <div className="pqc__grid">
         <label className="field">
-          <span className="field__label">Approval valid until</span>
+          <span className="field__label">Deadline</span>
           <input
             className="input"
             type="datetime-local"
             value={deadlineLocal}
             onChange={(event) => setDeadlineLocal(event.target.value)}
           />
-          <span className="field__hint">{deadline > 0n ? `${formatDate(deadline, true)} UTC · ${deadline.toString()}` : "—"}</span>
+          <span className="field__hint">
+            {deadline > 0n ? `${formatDate(deadline, true)} UTC · ${deadline.toString()}` : "—"}
+          </span>
         </label>
-        <div className="field" style={{ flex: "0 0 auto" }}>
-          <span className="field__label">Approval number</span>
-          <span className="mono" style={{ padding: "9px 0" }}>{nonce.toString()}</span>
+        <div className="field">
+          <span className="field__label">Nonce</span>
+          <span className="pqc__nonce mono">{nonce.toString()}</span>
+          <span className="field__hint">Used up when this lands on chain.</span>
         </div>
       </div>
 
-      <div className="field" style={{ marginBottom: 12 }}>
-        <span className="field__label">What this approves</span>
+      <div className="field pqc__message">
+        <span className="field__label" title={messageLabel}>
+          Message
+        </span>
         {loadingMessage ? (
-          <span className="mono muted">Reading {messageLabel}…</span>
+          <span className="mono muted">Reading from the contract…</span>
         ) : message ? (
-          <details>
-            <summary className="mono small" style={{ cursor: "pointer" }}>
-              {message.slice(0, 18)}…{message.slice(-12)} · {(message.length - 2) / 2} bytes
-              <span style={{ marginLeft: 8 }}><CopyButton value={message} label="Copy message" /></span>
+          <details className="pqc__message-detail">
+            <summary>
+              <span className="mono small">
+                {message.slice(0, 18)}…{message.slice(-12)} · {(message.length - 2) / 2} bytes
+              </span>
+              <span className="pqc__message-copy">
+                <CopyButton value={message} label="Copy message" />
+              </span>
             </summary>
-            <pre className="code" style={{ marginTop: 8, maxHeight: 132 }}>{message}</pre>
+            <pre className="code">{message}</pre>
           </details>
         ) : (
-          <span className="mono small" style={{ color: "var(--danger)" }}>{messageError ?? "Message unavailable."}</span>
+          <span className="mono small error-text">{messageError ?? "Message unavailable."}</span>
         )}
       </div>
 
-      <div className="field" style={{ marginBottom: 12 }}>
-        <span className="field__label">Signature from the approval key</span>
+      <div className="field">
+        <span className="field__label">Signature (4,627 bytes)</span>
         <textarea
-          className="textarea"
-          placeholder="Paste the 0x… signature produced offline"
+          className="textarea pqc__signature"
+          placeholder="0x… from your offline signer"
           value={signature}
           onChange={(event) => {
             setSignature(event.target.value);
@@ -161,23 +182,16 @@ export function PqcPanel({
           spellCheck={false}
         />
         <span className="field__hint">
-          {signatureBytes > 0 ? `${signatureBytes.toLocaleString()} bytes · expected 4,627` : "The approval key stays offline. Only the signature is used here."}
+          {signatureBytes > 0
+            ? `${signatureBytes.toLocaleString()} bytes · expected 4,627`
+            : "Paste the signature produced by the offline key."}
         </span>
       </div>
 
-      <Notice title="Keep the approval key offline" tone="neutral">
-        The signature is produced on the signer machine, never in this browser. Run the repository tooling there,
-        then paste only the signature here.
-        <details className="details" style={{ marginTop: 4 }}>
-          <summary>Signing command</summary>
-          <pre className="code" style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{signingCommand}</pre>
-        </details>
-      </Notice>
-
-      <div className="btn-row" style={{ marginTop: 12 }}>
+      <div className="pqc__actions">
         <button
           type="button"
-          className="btn btn--secondary btn--sm"
+          className="btn btn--secondary"
           disabled={!message || !parsedSignature || verify.status === "checking"}
           onClick={verifySignature}
         >
@@ -186,7 +200,7 @@ export function PqcPanel({
         </button>
         <button
           type="button"
-          className="btn btn--primary btn--sm"
+          className="btn btn--primary"
           disabled={disabled || busy || !message || !parsedSignature || verify.status !== "valid"}
           onClick={() => {
             if (parsedSignature) onSubmit(parsedSignature, deadline);
@@ -197,19 +211,27 @@ export function PqcPanel({
         </button>
       </div>
 
-      {verify.status === "valid" && (
-        <div className="sig-status sig-status--ok" style={{ marginTop: 10 }}>
-          <span className="dot" /> Signature verified for this amount.
+      {verify.status === "valid" ? (
+        <div className="sig-status sig-status--ok">
+          <IconCheck size={14} />
+          Signature verified. You can submit now.
         </div>
-      )}
-      {verify.status === "invalid" && (
-        <div className="sig-status sig-status--bad" style={{ marginTop: 10 }}>
-          <span className="dot" /> {verify.reason}
+      ) : null}
+      {verify.status === "invalid" ? (
+        <div className="sig-status sig-status--bad">
+          <span className="sig-status__dot" aria-hidden="true" />
+          {verify.reason}
         </div>
-      )}
-      {disabled && disabledReason && (
-        <p className="small muted" style={{ marginTop: 10 }}>{disabledReason}</p>
-      )}
+      ) : null}
+      {disabled && disabledReason ? <p className="pqc__disabled">{disabledReason}</p> : null}
+
+      <details className="pqc__offline">
+        <summary>How to sign offline</summary>
+        <Notice>
+          Keep the key file off this browser. Sign on the signer host, then paste the signature here.
+        </Notice>
+        <pre className="code">{signingCommand}</pre>
+      </details>
     </div>
   );
 }

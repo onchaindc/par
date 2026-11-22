@@ -1,6 +1,6 @@
 import type { BondData } from "../hooks/useBondData";
 import { formatBlock, formatPercent, formatToken } from "../lib/format";
-import { Card, Empty, Notice, Pill, Stat } from "../components/ui";
+import { Card, Empty, KeyValue, Notice, PageHeader, Pill, Progress, Stat } from "../components/ui";
 
 export function Ledger({ bond }: { bond: BondData }) {
   const totals = bond.periods.reduce(
@@ -22,68 +22,65 @@ export function Ledger({ bond }: { bond: BondData }) {
   const liabilities = totals.required + bond.redemption.required;
   const contractBalance = bond.servicingPaymentBalance;
   const coverage = liabilities > 0n ? Number((contractBalance * 10_000n) / liabilities) / 100 : 0;
+  const claimRate =
+    totals.required > 0n ? Number((totals.claimed * 10_000n) / totals.required) / 100 : 0;
 
   return (
-    <div className="stack">
-      <div>
-        <div className="eyebrow">Records</div>
-        <h2 className="section-title">Every amount, in one place</h2>
-        <p className="section-sub">
-          What the bond promises, what has been funded and what holders have collected. Read straight from the
-          contracts; nothing is cached or simulated.
-        </p>
-      </div>
+    <div className="stack stack--lg">
+      <PageHeader
+        eyebrow="Funds"
+        title="Money in, money out"
+        description="Live totals for everything owed, funded and paid out."
+        actions={<Pill>Block {formatBlock(bond.blockNumber)}</Pill>}
+      />
 
-      <div className="grid grid--4">
+      <div className="stat-grid">
         <Stat
-          label="Promised"
+          label="Total owed"
           value={formatToken(totals.required + bond.redemption.required, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot={`${bond.periods.length} interest round${bond.periods.length === 1 ? "" : "s"} plus principal`}
+          foot={`${bond.periods.length} coupon period${bond.periods.length === 1 ? "" : "s"} + principal`}
         />
         <Stat
           label="Funded"
           value={formatToken(totals.funded + bond.redemption.funded, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot={`${formatToken(unfunded + redemptionUnfunded, bond.paymentDecimals, 2)} still to add`}
+          foot={`${formatToken(unfunded + redemptionUnfunded, bond.paymentDecimals, 2)} still to fund`}
         />
         <Stat
-          label="Collected"
+          label="Paid out"
           value={formatToken(totals.claimed + bond.redemption.claimed, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot="Already in holders' wallets"
+          foot={`${formatPercent(claimRate)} of coupons claimed`}
         />
         <Stat
-          label="Waiting to collect"
+          label="Outstanding"
           value={formatToken(totals.outstanding + bond.redemption.outstanding, bond.paymentDecimals, 2)}
           unit={bond.paymentSymbol}
-          foot="Funded and ready for holders"
+          foot="funded, not yet claimed"
         />
       </div>
 
-      <div className="grid grid--sidebar">
+      <div className="stack">
         <Card
-          title="Interest rounds"
-          hint="What each round needs, what has been added and what holders have collected."
+          title="Coupon periods"
           flush
         >
           {bond.periods.length === 0 ? (
-            <div style={{ padding: "0 24px 24px" }}>
-              <Empty title="No rounds to show">
-                Open the first round and its numbers will appear here automatically.
-              </Empty>
+            <div className="card__pad">
+              <Empty title="Nothing here yet">Once a period is opened and funded, it shows up here.</Empty>
             </div>
           ) : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table table--stack">
                 <thead>
                   <tr>
-                    <th>Round</th>
-                    <th>Needed</th>
-                    <th>Funded</th>
-                    <th>Collected</th>
-                    <th>Waiting</th>
-                    <th>Covered</th>
+                    <th>Period</th>
+                    <th className="align-end">Required</th>
+                    <th className="align-end">Funded</th>
+                    <th className="align-end">Claimed</th>
+                    <th className="align-end">Outstanding</th>
+                    <th>Progress</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -92,19 +89,29 @@ export function Ledger({ bond }: { bond: BondData }) {
                       period.required > 0n ? Number((period.funded * 10_000n) / period.required) / 100 : 0;
                     return (
                       <tr key={period.id}>
-                        <td>
+                        <td data-label="Period">
                           <span className="mono">#{period.id}</span>
-                          <div className="small muted">snapshot {formatBlock(period.recordDateBlock)}</div>
+                          <span className="cell-note">block {formatBlock(period.recordDateBlock)}</span>
                         </td>
-                        <td className="num">{formatToken(period.required, bond.paymentDecimals, 2)}</td>
-                        <td className="num">{formatToken(period.funded, bond.paymentDecimals, 2)}</td>
-                        <td className="num">{formatToken(period.claimed, bond.paymentDecimals, 2)}</td>
-                        <td className="num">{formatToken(period.outstanding, bond.paymentDecimals, 2)}</td>
-                        <td>
-                          <div className="btn-row" style={{ gap: 8 }}>
-                            <div className="progress" style={{ width: 64 }}>
-                              <div className="progress__bar" style={{ width: `${Math.min(100, fundedPct)}%` }} />
-                            </div>
+                        <td data-label="Required" className="num align-end">
+                          {formatToken(period.required, bond.paymentDecimals, 2)}
+                        </td>
+                        <td data-label="Funded" className="num align-end">
+                          {formatToken(period.funded, bond.paymentDecimals, 2)}
+                        </td>
+                        <td data-label="Claimed" className="num align-end">
+                          {formatToken(period.claimed, bond.paymentDecimals, 2)}
+                        </td>
+                        <td data-label="Outstanding" className="num align-end">
+                          {formatToken(period.outstanding, bond.paymentDecimals, 2)}
+                        </td>
+                        <td data-label="Funded">
+                          <div className="share-cell">
+                            <Progress
+                              value={fundedPct}
+                              tone={fundedPct >= 100 ? "green" : "gold"}
+                              label={`Period ${period.id} funding`}
+                            />
                             <span className="num small">{formatPercent(fundedPct)}</span>
                           </div>
                         </td>
@@ -117,77 +124,102 @@ export function Ledger({ bond }: { bond: BondData }) {
           )}
         </Card>
 
-        <Card title="Money held" hint="Funds sitting in the contract for payments that have not been collected yet.">
-          <div className="stack" style={{ gap: 14 }}>
-            <div>
-              <div className="field__label">In the contract</div>
-              <p className="stat__value" style={{ fontSize: 34, marginTop: 4 }}>
-                {formatToken(contractBalance, bond.paymentDecimals, 2)}
-                <small>{bond.paymentSymbol}</small>
-              </p>
+        <div className="funds-grid">
+        <Card title="Payout balance" hint="Held by the contract for funded, unclaimed payouts.">
+          <div className="balance-panel">
+            <div className="field__label">Contract balance</div>
+            <div className="balance-panel__value">
+              {formatToken(contractBalance, bond.paymentDecimals, 2)}
+              <small>{bond.paymentSymbol}</small>
             </div>
-            <dl className="kv">
-              <dt>Promised in total</dt>
-              <dd>{formatToken(liabilities, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-              <dt>Covered</dt>
-              <dd>{formatPercent(coverage)}</dd>
-              <dt>Still needed for interest</dt>
-              <dd>{formatToken(unfunded, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-              <dt>Still needed for principal</dt>
-              <dd>{formatToken(redemptionUnfunded, bond.paymentDecimals, 2)} {bond.paymentSymbol}</dd>
-              <dt>Payment token supply</dt>
-              <dd>{formatToken(bond.paymentTotalSupply, bond.paymentDecimals, 0)} {bond.paymentSymbol}</dd>
-            </dl>
-            <div className="progress" aria-label="Funding coverage">
-              <div
-                className={coverage >= 100 ? "progress__bar" : "progress__bar progress__bar--gold"}
-                style={{ width: `${Math.min(100, coverage)}%` }}
-              />
+            <div className="balance-panel__coverage">
+              <span>Coverage</span>
+              <span className="mono">{formatPercent(coverage)}</span>
             </div>
+            <Progress value={coverage} tone={coverage >= 100 ? "green" : "gold"} label="Funding coverage" />
           </div>
+          <KeyValue
+            rows={[
+              {
+                label: "Total owed",
+                value: `${formatToken(liabilities, bond.paymentDecimals, 2)} ${bond.paymentSymbol}`,
+              },
+              {
+                label: "Coupons to fund",
+                value: `${formatToken(unfunded, bond.paymentDecimals, 2)} ${bond.paymentSymbol}`,
+              },
+              {
+                label: "Principal to fund",
+                value: `${formatToken(redemptionUnfunded, bond.paymentDecimals, 2)} ${bond.paymentSymbol}`,
+              },
+              {
+                label: "Payment token supply",
+                value: `${formatToken(bond.paymentTotalSupply, bond.paymentDecimals, 0)} ${bond.paymentSymbol}`,
+              },
+            ]}
+          />
         </Card>
-      </div>
-
-      <div className="grid grid--sidebar">
-        <Card title="Principal">
+        <Card title="Principal" flush>
           {!bond.redemption.declared ? (
-            <Empty title="Principal is not open yet">
-              It becomes available after maturity, once the issuer declares it and adds the full amount.
-            </Empty>
+            <div className="card__pad">
+              <Empty title="Not declared yet">
+                Principal can be declared after maturity, then funded and claimed.
+              </Empty>
+            </div>
           ) : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table table--stack">
                 <thead>
                   <tr>
-                    <th>Stage</th>
-                    <th>Amount</th>
+                    <th>Bucket</th>
+                    <th className="align-end">Amount</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Needed</td>
-                    <td className="num">{formatToken(bond.redemption.required, bond.paymentDecimals, 2)}</td>
-                    <td><Pill>Snapshot {formatBlock(bond.redemption.recordDateBlock)}</Pill></td>
+                    <td data-label="Bucket">Required</td>
+                    <td data-label="Amount" className="num align-end">
+                      {formatToken(bond.redemption.required, bond.paymentDecimals, 2)}
+                    </td>
+                    <td data-label="Status">
+                      <Pill>Record block {formatBlock(bond.redemption.recordDateBlock)}</Pill>
+                    </td>
                   </tr>
                   <tr>
-                    <td>Funded</td>
-                    <td className="num">{formatToken(bond.redemption.funded, bond.paymentDecimals, 2)}</td>
-                    <td>
+                    <td data-label="Bucket">Funded</td>
+                    <td data-label="Amount" className="num align-end">
+                      {formatToken(bond.redemption.funded, bond.paymentDecimals, 2)}
+                    </td>
+                    <td data-label="Status">
                       <Pill tone={bond.redemption.funded >= bond.redemption.required ? "ok" : "warn"}>
-                        {bond.redemption.funded >= bond.redemption.required ? "Fully funded" : "Partly funded"}
+                        {bond.redemption.funded >= bond.redemption.required ? "Fully funded" : "Partial"}
                       </Pill>
                     </td>
                   </tr>
                   <tr>
-                    <td>Collected</td>
-                    <td className="num">{formatToken(bond.redemption.claimed, bond.paymentDecimals, 2)}</td>
-                    <td><Pill>{formatPercent(bond.redemption.required > 0n ? Number((bond.redemption.claimed * 10_000n) / bond.redemption.required) / 100 : 0)}</Pill></td>
+                    <td data-label="Bucket">Claimed</td>
+                    <td data-label="Amount" className="num align-end">
+                      {formatToken(bond.redemption.claimed, bond.paymentDecimals, 2)}
+                    </td>
+                    <td data-label="Status">
+                      <Pill>
+                        {formatPercent(
+                          bond.redemption.required > 0n
+                            ? Number((bond.redemption.claimed * 10_000n) / bond.redemption.required) / 100
+                            : 0,
+                        )}
+                      </Pill>
+                    </td>
                   </tr>
                   <tr>
-                    <td>Waiting</td>
-                    <td className="num">{formatToken(bond.redemption.outstanding, bond.paymentDecimals, 2)}</td>
-                    <td><Pill>Ready to collect</Pill></td>
+                    <td data-label="Bucket">Outstanding</td>
+                    <td data-label="Amount" className="num align-end">
+                      {formatToken(bond.redemption.outstanding, bond.paymentDecimals, 2)}
+                    </td>
+                    <td data-label="Status">
+                      <Pill>Funded, unclaimed</Pill>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -195,34 +227,28 @@ export function Ledger({ bond }: { bond: BondData }) {
           )}
         </Card>
 
-        <Card title="Integrity checks">
-          <dl className="kv">
-            <dt>Approvals used</dt>
-            <dd>{bond.nonce.toString()}</dd>
-            <dt>Approval key</dt>
-            <dd className="mono">{bond.pqcIssuer.slice(0, 10)}…{bond.pqcIssuer.slice(-6)}</dd>
-            <dt>Key registered</dt>
-            <dd>{bond.keyStatus?.registered ? "Yes" : "No"}</dd>
-            <dt>Key verified</dt>
-            <dd>{bond.keyStatus?.possessionProven ? "Yes" : "No"}</dd>
-            <dt>Bonds issued</dt>
-            <dd>{formatToken(bond.totalSupply, bond.decimals, 0)} {bond.symbol}</dd>
-            <dt>Current block</dt>
-            <dd>{formatBlock(bond.blockNumber)}</dd>
-          </dl>
+        <Card title="Contract state">
+          <KeyValue
+            rows={[
+              { label: "Authorization nonce", value: bond.nonce.toString() },
+              { label: "PQC identity", value: `${bond.pqcIssuer.slice(0, 10)}…${bond.pqcIssuer.slice(-6)}` },
+              { label: "Key registered", value: bond.keyStatus?.registered ? "Yes" : "No" },
+              { label: "Possession proven", value: bond.keyStatus?.possessionProven ? "Yes" : "No" },
+              { label: "Bond supply", value: `${formatToken(bond.totalSupply, bond.decimals, 0)} ${bond.symbol}` },
+              { label: "Current block", value: formatBlock(bond.blockNumber) },
+            ]}
+          />
           {!bond.keyStatus?.registered || !bond.keyStatus.possessionProven ? (
-            <div style={{ marginTop: 14 }}>
-              <Notice tone="danger" title="The approval key needs attention">
-                Payments cannot be approved until a valid key is registered for {bond.pqcIssuer}.
+            <div className="card__note-block">
+              <Notice tone="danger" title="Signing key unavailable">
+                Issuer actions will revert until a verified ML-DSA-87 key is registered for {bond.pqcIssuer}.
               </Notice>
             </div>
           ) : (
-            <p className="small muted" style={{ marginTop: 14 }}>
-              Only money inside the servicing contract counts towards these numbers. Wallet balances elsewhere are
-              not included.
-            </p>
+            <p className="card__note">Only tokens inside the contract back outstanding payouts.</p>
           )}
         </Card>
+        </div>
       </div>
     </div>
   );

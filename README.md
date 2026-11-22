@@ -131,7 +131,7 @@ bun run typecheck
 ```
 
 The app opens on an **issue cover** — a live, three-dimensional bond certificate with the key terms, interest
-calendar, payout mechanics and the two-key model. Entering the app reveals a sticky desktop pill navigation and a
+calendar, payout mechanics and the two-key model. Entering the app reveals a desktop sidebar navigation and a
 fixed mobile bottom bar. The cover is session-scoped: the brand mark returns to it.
 
 **Read access is open to everyone.** No wallet, account, API key or private key is needed to read the bond. A
@@ -141,15 +141,15 @@ For a public write demo, use a hosted, rate-limited signer service rather than e
 
 Sections:
 
-- **Issue** — the bond in plain language: terms, live supply, interest schedule, on-chain holders and the
-  two-key approval model. Technical addresses sit behind a collapsed details panel.
-- **Bonds** — the connected holder's balance, interest per payment, what is ready to collect and principal
-  status, plus a collapsed wallet-balance detail.
-- **Manage** — opening an interest round, moving its snapshot, approving with an externally produced signature,
-  adding funds and declaring principal. Role-gated and clearly labelled view-only when the wallet lacks access.
-- **Payments** — interest collections per round and the one-time principal collection, enabled only when fully
+- **Overview** — the bond in plain language: terms, live supply, interest schedule, on-chain holders and the
+  two-key approval model.
+- **Your position** — the connected holder's balance, interest per payment, what is ready to collect and
+  principal status.
+- **Issuer** — opening a round, moving its snapshot, approving with an externally produced signature, adding
+  funds and declaring principal. Role-gated and clearly labelled view-only when the wallet lacks access.
+- **Claims** — interest collections per round and the one-time principal collection, enabled only when fully
   funded.
-- **Records** — promised, funded, collected and outstanding amounts, contract coverage, and integrity checks.
+- **Funds** — promised, funded, collected and outstanding amounts, coverage and integrity checks.
 
 Sensitive actions never sign in the browser: the panel shows the exact message read from the contract, the
 registered PQC identity, the authorization nonce and a deadline, verifies a pasted 4,627-byte ML-DSA-87

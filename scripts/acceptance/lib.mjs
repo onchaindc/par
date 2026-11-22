@@ -99,14 +99,6 @@ export async function launch() {
   return chromium.launch({ channel: "chromium", headless: true });
 }
 
-export async function enterApp(page) {
-  const cta = page.getByRole("button", { name: /Explore the bond/i }).first();
-  if (await cta.count()) {
-    await cta.click();
-    await page.waitForTimeout(600);
-  }
-}
-
 export function assert(condition, message) {
   if (!condition) throw new Error(message);
 }

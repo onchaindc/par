@@ -75,12 +75,10 @@ acceptance: viem previously reduced it to "An unknown RPC error occurred").
 
 ## Frontend checks
 
-Automated browser checks with Playwright/Chromium at 1440, 768 and 390 px (61 checks, all passing):
+Automated browser checks with Playwright/Chromium at 1440, 768 and 390 px were last run against the
+pre-cover shell. The current issue cover and sidebar/bottom-navigation shell have been typechecked and
+production-built, but need a fresh browser pass before their geometry is claimed as verified.
 
-- issue cover renders its 3D certificate, four-cell terms tape and entry CTA at every width; the seal does
-  not overlap certificate text; header height and navigation placement are checked (static desktop pill bar,
-  fixed mobile/tablet bottom bar);
-- the holder register renders both current holders and no longer reports “No token holders” when supply exists;
 - no horizontal page overflow (page delta 0 px at all widths), no card outside the viewport, no clipped
   buttons/tabs/pills, navigation present, no uncaught page errors;
 - Fraunces display font, Inter body font and IBM Plex Mono numerics loaded; the mobile tab strip scrolls
