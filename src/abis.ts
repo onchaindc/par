@@ -11,6 +11,7 @@ export const bondTokenAbi = parseAbi([
   "function balanceOfAt(address account, uint256 blockNumber) view returns (uint256)",
   "function totalSupplyAt(uint256 blockNumber) view returns (uint256)",
   "function MINTER_ROLE() view returns (bytes32)",
+  "function mint(address to, uint256 amount)",
   "function hasRole(bytes32 role, address account) view returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",

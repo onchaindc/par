@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { parseUnits } from "viem";
 import { ADDRESSES, qoreChain } from "../config";
-import { servicingAbi } from "../abis";
+import { bondTokenAbi, servicingAbi } from "../abis";
 import type { AccountData } from "../hooks/useAccountData";
 import type { BondData } from "../hooks/useBondData";
 import type { WalletState } from "../hooks/useWallet";
@@ -38,9 +39,22 @@ export function Issuer({
   const lastRecordBlock = bond.periods.length ? bond.periods[bond.periods.length - 1].recordDateBlock : 0n;
   const isIssuer = account?.isIssuer ?? false;
   const isTreasurer = account?.isTreasurer ?? false;
+  const isMinter = account?.isMinter ?? false;
 
   const [newRecordBlock, setNewRecordBlock] = useState(() => (bond.blockNumber + 1_000n).toString());
   const [recordError, setRecordError] = useState<string>();
+
+  // Issuance front door: mint bond tokens to investors.
+  const [mintTo, setMintTo] = useState("");
+  const [mintAmount, setMintAmount] = useState("");
+  const [mintError, setMintError] = useState<string>();
+  const mintParsed = useMemo(() => {
+    try {
+      return mintAmount.trim() ? parseUnits(mintAmount.trim(), bond.decimals) : 0n;
+    } catch {
+      return null;
+    }
+  }, [mintAmount, bond.decimals]);
 
   const openPeriod = () => {
     if (!wallet.walletClient || !wallet.address) return;
@@ -66,6 +80,36 @@ export function Issuer({
         abi: servicingAbi,
         functionName: "openCouponPeriod",
         args: [block],
+        account: wallet.address!,
+        chain: qoreChain,
+      }),
+      refreshAll,
+    );
+  };
+
+  const mintTokens = () => {
+    if (!wallet.walletClient || !wallet.address) return;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(mintTo.trim())) {
+      setMintError("Enter a valid 0x recipient address.");
+      return;
+    }
+    if (mintParsed === null || mintParsed === 0n) {
+      setMintError("Enter a valid amount.");
+      return;
+    }
+    if (bond.totalSupply + mintParsed > bond.cap) {
+      setMintError(
+        `Cap exceeded: supply ${formatToken(bond.totalSupply, bond.decimals, 0)} + ${mintAmount.trim()} > cap ${formatToken(bond.cap, bond.decimals, 0)}.`,
+      );
+      return;
+    }
+    setMintError(undefined);
+    void tx.run(`Mint ${mintAmount.trim()} ${bond.symbol}`, () =>
+      wallet.walletClient!.writeContract({
+        address: ADDRESSES.bond,
+        abi: bondTokenAbi,
+        functionName: "mint",
+        args: [mintTo.trim() as `0x${string}`, mintParsed],
         account: wallet.address!,
         chain: qoreChain,
       }),
@@ -201,6 +245,56 @@ export function Issuer({
         refreshAll={refreshAll}
         now={now}
       />
+
+      <Card
+        title="Issue bond tokens"
+        hint="Mint to an investor. Supply can never exceed the cap."
+        actions={<Pill>{`${formatToken(bond.totalSupply, bond.decimals, 0)} / ${formatToken(bond.cap, bond.decimals, 0)} ${bond.symbol}`}</Pill>}
+      >
+        <div className="form-row">
+          <label className="field">
+            <span className="field__label">Recipient</span>
+            <input
+              className="input"
+              value={mintTo}
+              onChange={(event) => {
+                setMintTo(event.target.value);
+                setMintError(undefined);
+              }}
+              placeholder="0x…"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Amount ({bond.symbol})</span>
+            <input
+              className="input"
+              value={mintAmount}
+              onChange={(event) => {
+                setMintAmount(event.target.value);
+                setMintError(undefined);
+              }}
+              placeholder="0.00"
+              inputMode="decimal"
+            />
+            <span className="field__hint">
+              Headroom: {formatToken(bond.cap - bond.totalSupply, bond.decimals, 0)} {bond.symbol}.
+            </span>
+          </label>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!wallet.walletClient || !isMinter || busy || !wallet.isCorrectChain}
+            onClick={mintTokens}
+          >
+            Mint
+          </button>
+        </div>
+        {mintError ? <p className="form-error">{mintError}</p> : null}
+        {!isMinter && wallet.address ? (
+          <p className="form-hint">Needs the minter role on the bond token.</p>
+        ) : null}
+      </Card>
 
       <Card title="Supply">
         <div className="detail-grid">

@@ -66,7 +66,7 @@ let scanFailed = false;
 async function readHolders(): Promise<{ holders: Holder[]; complete: boolean }> {
   const latest = await publicClient.getBlockNumber();
   let cursor = scannedTo === null ? DEPLOY_BLOCK : scannedTo + 1n;
-  const chunk = 9_000n;
+  let chunk = 9_000n;
 
   if (cursor <= latest) scanFailed = false;
   while (cursor <= latest) {
@@ -87,11 +87,17 @@ async function readHolders(): Promise<{ holders: Holder[]; complete: boolean }> 
         }),
       ];
       scannedTo = end;
+      cursor = end + 1n;
+      chunk = 9_000n; // window succeeded; restore the full size
     } catch {
-      scanFailed = true;
-      break;
+      // Some RPCs reject wide ranges intermittently; halve and retry the same
+      // range before giving up.
+      if (chunk <= 250n) {
+        scanFailed = true;
+        break;
+      }
+      chunk /= 2n;
     }
-    cursor = end + 1n;
   }
 
   const seen = new Set<string>();
