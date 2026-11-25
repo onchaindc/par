@@ -17,7 +17,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "viem": "^2.55.13",
-    "wagmi": "^2.19.5"
+    "wagmi": "^2.19.5",
+    "@qorechain/pqc": "0.2.3"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

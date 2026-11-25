@@ -231,6 +231,13 @@ export function PqcPanel({
           Keep the key file off this browser. Sign on the signer host, then paste the signature here.
         </Notice>
         <pre className="code">{signingCommand}</pre>
+        <p className="pqc__no-laptop">
+          No terminal at hand? Open{" "}
+          <a href="/pqc-signer.html" target="_blank" rel="noreferrer">
+            the in-browser signer
+          </a>{" "}
+          — paste the secret key, get the signature on this device. The key never leaves the page.
+        </p>
       </details>
     </div>
   );

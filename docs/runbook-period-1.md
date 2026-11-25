@@ -33,7 +33,16 @@ State verified on-chain 2026-11-25 (RPC `https://evm-testnet.qore.host`, chain I
 
 ## Step 1 — sign the finalization message (PQC issuer, offline)
 
-The app's issuer panel prints this command; run it where the key file is:
+Two ways — pick whichever fits:
+
+**A. In the browser (no terminal needed).** Open `/pqc-signer.html` on the deployed app:
+paste or file-load the ML-DSA-87 secret key, set the period id and deadline, press
+"Sign & verify". The page reads the message from BondServicing via `eth_call`, signs with
+the local key, verifies against the registered public key and the `0x0A01` precompile, and
+produces the signature to copy. The secret never leaves the page.
+
+**B. On a signer host (terminal).** The app's issuer panel prints this command; run it
+where the key file is:
 
 ```bash
 cd tools/pqc-sign
