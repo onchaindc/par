@@ -23,6 +23,13 @@ export const ADDRESSES = {
 /** Block the demo deployment landed in, used as the log-scan start. */
 export const DEPLOY_BLOCK = 10_462_390n;
 
+/**
+ * Reown (WalletConnect Cloud) project id. Set VITE_REOWN_PROJECT_ID in the
+ * deployment environment; when absent the WalletConnect option stays hidden
+ * and injected wallets keep working.
+ */
+export const REOWN_PROJECT_ID = (import.meta.env.VITE_REOWN_PROJECT_ID ?? "").trim();
+
 export const PQC_KEY_STATUS = "0x0000000000000000000000000000000000000a02" as const;
 
 export const REST_API = "https://api-testnet.qore.host";
