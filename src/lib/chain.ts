@@ -30,12 +30,16 @@ export async function readPqcKeyStatus(address: `0x${string}`): Promise<PqcKeySt
     const hex = result.data ?? "0x";
     const bytes = (hex.length - 2) / 2;
     if (bytes < 160) return null;
+    const publicKeyBytes = Number(BigInt(sliceHex(hex, 128, 160)));
+    // The response is a 160-byte header (5 words) followed by the raw public key.
+    // `sliceHex` operates on bytes and already accounts for the "0x" prefix.
+    const keyEnd = 160 + publicKeyBytes;
     return {
       registered: BigInt(sliceHex(hex, 0, 32)) === 1n,
       algorithmId: Number(BigInt(sliceHex(hex, 32, 64))),
       possessionProven: BigInt(sliceHex(hex, 96, 128)) === 1n,
-      publicKeyBytes: Number(BigInt(sliceHex(hex, 128, 160))),
-      publicKeyHex: hex.length >= 160 + 2592 * 2 ? `0x${hex.slice(160 + 2, 160 + 2 + 2592 * 2)}` : "0x",
+      publicKeyBytes,
+      publicKeyHex: bytes >= keyEnd ? sliceHex(hex, 160, keyEnd) : "0x",
       responseBytes: bytes,
     };
   } catch {

@@ -200,7 +200,9 @@ Implemented protections:
 - separated `ISSUER_ROLE` and `TREASURER_ROLE`, and separated operational EVM issuer from the registered PQC signing identity;
 - fail-closed ML-DSA-87 authorization: four-field key status with proof of possession, nonce- and deadline-bound, domain-separated messages.
 
-Known limitations are listed in [docs/architecture.md](docs/architecture.md), including the pending first registered-issuer transaction, testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
+The first registered-issuer authorization completed on 21 November 2026: the registered ML-DSA-87 identity signed the finalization message and `finalizeCoupon` for period 0 went through with nonce 0 (see [docs/acceptance.md](docs/acceptance.md)). Coupon period 1 is opened with record-date block 10,470,000, which has since been reached; its finalization is the next pending issuer action.
+
+Remaining limitations are listed in [docs/architecture.md](docs/architecture.md): testnet-only precompile status, per-investor rounding dust, and the absence of token retirement after principal claims.
 
 The contracts are deployed to QoreChain testnet only (see [docs/deployment.md](docs/deployment.md));
 they are unaudited and not deployed to mainnet.
