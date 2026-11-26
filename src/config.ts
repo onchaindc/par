@@ -14,14 +14,14 @@ export const qoreChain = defineChain({
 export const CHAIN_ID_HEX = `0x${qoreChain.id.toString(16)}`;
 
 export const ADDRESSES = {
-  bond: "0xC3d195C5A5e2c476888050205D55DfBe3C453840",
-  authorizer: "0x8FC2F2B42C4e1bfe203FE3e4F0F126593990784F",
-  servicing: "0x5df199D05FB83D14eaFD2823D46982bEb13512F5",
-  paymentToken: "0xD6EE9c3918507eb7DDB77Bb6E6f74176d9140262",
+  bond: "0xD55923A5ecFd2C27A19fE4129fE1A3DB32aeffBe",
+  authorizer: "0xB3C0CD313703b92EbaA7B837e4d45a5aA4eBa4F9",
+  servicing: "0x01550DF995A372Ea14f66a5041e9D5840B0A2766",
+  paymentToken: "0x031530a8cB484bE835d42F35a73712d50E474691",
 } as const satisfies Record<string, `0x${string}`>;
 
-/** Block the demo deployment landed in, used as the log-scan start. */
-export const DEPLOY_BLOCK = 10_462_390n;
+/** Block the redeployment landed in, used as the log-scan start. */
+export const DEPLOY_BLOCK = 10_758_187n;
 
 /**
  * Reown (WalletConnect Cloud) project id. Set VITE_REOWN_PROJECT_ID in the
